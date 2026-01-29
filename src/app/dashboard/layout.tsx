@@ -3,7 +3,7 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav"; 
 import { useSubscriptionCheck } from "@/hooks/useSubscriptionCheck";
-import TrialBanner from "@/components/TrialBanner";
+import { TrialBanner }from "@/components/TrialBanner";
 
 export default function DashboardLayout({
   children,

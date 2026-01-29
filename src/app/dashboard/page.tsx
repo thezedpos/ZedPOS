@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,7 +6,7 @@ import { createClient } from '@/supabase/client';
 import { useBusiness } from '@/contexts/BusinessContext';
 import { 
   Loader2, X, TrendingUp, Receipt, AlertTriangle, 
-  ShoppingCart, Plus, Users, BarChart3, Settings, Crown 
+  ShoppingCart, Plus, Users, Settings, Crown 
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -94,7 +94,7 @@ export default function Dashboard() {
     }
   }, [businessId, supabase]);
 
-  // --- MISSING HELPER FUNCTIONS RESTORED ---
+  // Helper Functions
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -130,27 +130,32 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        {/* --- FIXED BANNER --- */}
-        {showTrialBanner && trialDaysLeft !== null && trialDaysLeft > 0 && (
-          <div className="relative">
-            {/* The Clickable Area */}
-            <Link href="/dashboard/settings/subscription" className="block">
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all active:scale-[0.99] flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-white/20 p-2.5 rounded-full backdrop-blur-sm">
-                    <Crown className="w-6 h-6 text-yellow-300 fill-yellow-300" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-base">Pro Trial Active</p>
-                    <p className="text-emerald-50 text-sm">
-                      {trialDaysLeft} days remaining. Tap to manage plan.
-                    </p>
-                  </div>
-                </div>
-                {/* Visual arrow to indicate clickability */}
-                <div className="text-white/80 pr-8">→</div> 
+        {/* Trial Banner */}
+        {showTrialBanner && trialDaysLeft !== null && (
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-4 text-white relative shadow-lg overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Crown className="w-24 h-24 rotate-12" />
+            </div>
+            
+            <div className="relative z-10 pr-8">
+              <div className="flex items-center gap-2 mb-1">
+                <Crown className="w-5 h-5 text-amber-400 fill-amber-400" />
+                <span className="font-bold text-amber-400 text-sm tracking-wide">PRO TRIAL</span>
               </div>
-            </Link>
+              <h3 className="text-lg font-bold mb-1">
+                {trialDaysLeft} Days Remaining
+              </h3>
+              <p className="text-gray-300 text-sm mb-3">
+                Enjoy full access to premium features.
+              </p>
+              
+              <Link 
+                href="/dashboard/settings/subscription"
+                className="inline-block bg-white text-gray-900 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                Manage Plan
+              </Link>
+            </div>
 
             {/* The Close Button */}
             <button
