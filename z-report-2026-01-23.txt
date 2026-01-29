@@ -1,0 +1,22 @@
+
+DAILY Z-REPORT
+My Test Shop
+Date: January 23, 2026
+
+BIG NUMBERS
+Total Revenue: K125.00
+Cash Collected: K35.00
+Mobile Money: K90.00
+
+TAX SUMMARY
+Total Standard (16%) Sales: K30.00
+Total VAT Collected: K4.14
+Total Exempt/Zero-Rated Sales: K95.00
+
+TOP 5 PRODUCTS
+1. Pepsi Max 500ml - Qty: 3 - Revenue: K30.00
+2. White Bread - Qty: 3 - Revenue: K75.00
+3. Milk 500ml - Qty: 1 - Revenue: K20.00
+
+Generated: 1/23/2026, 8:55:45 AM
+    
