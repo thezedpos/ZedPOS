@@ -115,33 +115,37 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto w-full overflow-x-hidden">
+    // FIX 1: Added pb-28 to lift content above nav bar
+    // FIX 2: max-w-[100vw] and overflow-hidden prevent side-scroll
+    <div className="max-w-6xl mx-auto w-full max-w-[100vw] overflow-x-hidden pb-28">
+      
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="flex items-center justify-between p-4">
-          <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inventory</h1>
           {isOwner && (
             <div className="flex items-center gap-2">
               {isLimitReached ? (
-                <>
+                <div className="flex flex-col items-end">
                   <button
                     disabled
-                    className="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 cursor-not-allowed min-h-[44px]"
+                    className="bg-gray-300 text-gray-500 px-3 py-2 rounded-lg font-semibold flex items-center gap-2 cursor-not-allowed"
                   >
                     <Plus className="w-5 h-5" />
-                    <span className="hidden sm:inline">Limit Reached ({products.length}/{maxProducts})</span>
+                    <span className="hidden sm:inline">Limit Reached</span>
                   </button>
+                  {/* FIX 3: Removed whitespace-nowrap so text wraps if needed */}
                   <Link
                     href="/dashboard/settings/subscription"
-                    className="text-sm text-emerald-600 hover:text-emerald-700 font-medium underline whitespace-nowrap"
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium underline mt-1"
                   >
-                    Upgrade to Add More
+                    Upgrade
                   </Link>
-                </>
+                </div>
               ) : (
                 <button
                   onClick={handleAddProduct}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-emerald-700 transition-colors active:scale-95 min-h-[44px]"
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-emerald-700 transition-colors active:scale-95"
                 >
                   <Plus className="w-5 h-5" />
                   <span className="hidden sm:inline">Add Product</span>
@@ -151,13 +155,13 @@ export default function InventoryPage() {
           )}
         </div>
 
-        {/* Search Bar - FIXED */}
-        <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-6 flex gap-3 sticky top-0 z-10 md:static">
-         <div className="relative flex-1">
+        {/* Search Bar */}
+        <div className="bg-white px-4 pb-4">
+         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input 
             type="text" 
-            placeholder="Search products..." 
+            placeholder="Search..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors text-base"
@@ -172,10 +176,10 @@ export default function InventoryPage() {
         {tier === 'free' && (
           <div className="mb-4 bg-white rounded-lg p-4 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-700">
-                You have used {products.length} of {maxProducts} free items.
+              <p className="text-xs sm:text-sm font-medium text-gray-700">
+                Used {products.length}/{maxProducts} items
               </p>
-              <span className="text-sm font-semibold text-gray-900">
+              <span className="text-xs sm:text-sm font-semibold text-gray-900">
                 {products.length}/{maxProducts}
               </span>
             </div>
@@ -200,92 +204,74 @@ export default function InventoryPage() {
               <Package className="w-16 h-16 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery ? 'No products found' : 'No products yet'}
+              {searchQuery ? 'No results' : 'No products'}
             </h3>
-            <p className="text-gray-500 text-center mb-6 max-w-sm">
+            <p className="text-gray-500 text-center mb-6 max-w-[200px] text-sm">
               {searchQuery
-                ? 'Try adjusting your search terms'
-                : 'Add your first item to get started with inventory management'}
+                ? 'Try a different search term'
+                : 'Add your first item to start tracking.'}
             </p>
             {!searchQuery && isOwner && (
-              <div className="flex flex-col items-center gap-2">
-                {isLimitReached ? (
-                  <>
-                    <button
-                      disabled
-                      className="bg-gray-300 text-gray-500 px-6 py-3 rounded-lg font-semibold cursor-not-allowed"
-                    >
-                      Limit Reached ({products.length}/{maxProducts})
-                    </button>
-                    <Link
-                      href="/dashboard/settings/subscription"
-                      className="text-sm text-emerald-600 hover:text-emerald-700 font-medium underline"
-                    >
-                      Upgrade to Add More
-                    </Link>
-                  </>
-                ) : (
-                  <button
-                    onClick={handleAddProduct}
-                    className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
-                  >
-                    Add Your First Item
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={handleAddProduct}
+                className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+              >
+                Add Item
+              </button>
             )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
                 onClick={() => isOwner && handleEditProduct(product)}
-                className={`bg-white rounded-lg p-4 shadow-sm border border-gray-200 transition-transform ${
-                  isOwner ? 'active:scale-[0.98] cursor-pointer' : 'cursor-default'
+                // FIX 4: Ensure grid layout prevents overlap
+                className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 relative ${
+                  isOwner ? 'active:scale-[0.99] transition-transform' : ''
                 }`}
               >
-                <div className="flex items-start justify-between">
-                  {/* Left: Product Name + Barcode */}
-                  <div className="flex-1 min-w-0 pr-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-900 text-base truncate">
+                <div className="flex justify-between items-start gap-3">
+                  {/* Left: Product Name + Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900 text-base truncate w-full">
                         {product.name}
                       </h3>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 mt-1">
                       {product.stock < 5 && (
-                        <span className="bg-red-100 text-red-800 text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                        <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                           <AlertCircle className="w-3 h-3" />
-                          Low Stock
+                          LOW
                         </span>
                       )}
+                      {product.barcode ? (
+                        <p className="text-xs text-gray-500 font-mono bg-gray-50 px-1.5 py-0.5 rounded">
+                          {product.barcode}
+                        </p>
+                      ) : (
+                         <p className="text-xs text-gray-400 italic">No barcode</p>
+                      )}
                     </div>
-                    {product.barcode ? (
-                      <p className="text-xs text-gray-500">Barcode: {product.barcode}</p>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic">No barcode</p>
-                    )}
                   </div>
 
-                  {/* Right: Price + Stock + Add Stock Button */}
-                  <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
-                    <p className="font-bold text-gray-900 text-lg">
-                      ZMW {product.price.toFixed(2)}
+                  {/* Right: Price + Stock */}
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <p className="font-bold text-emerald-700 text-lg whitespace-nowrap">
+                      K{product.price.toFixed(2)}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <p
-                        className={`text-sm font-medium ${
-                          product.stock < 5
-                            ? 'text-red-600'
-                            : 'text-gray-600'
-                        }`}
-                      >
-                        Stock: {product.stock}
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className={`text-xs font-medium ${product.stock < 5 ? 'text-red-600' : 'text-gray-500'}`}>
+                        {product.stock} left
                       </p>
+                      
+                      {/* Add Stock Button - Only visible to owner */}
                       {isOwner && (
                         <button
                           onClick={(e) => handleAddStock(e, product)}
-                          className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
-                          title="Add Stock"
+                          className="p-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
                         >
                           <PackagePlus className="w-4 h-4" />
                         </button>
