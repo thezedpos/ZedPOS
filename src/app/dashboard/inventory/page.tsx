@@ -115,14 +115,14 @@ export default function InventoryPage() {
   }
 
   return (
-    // MAIN CONTAINER: Force overflow hidden to kill horizontal scroll
-    <div className="w-full max-w-[100vw] overflow-x-hidden pb-32">
+    // FIX 1: removed "max-w" constraints. Use plain w-full to match the sticky header.
+    // FIX 2: Increased pb-28 to pb-40 to handle the mobile browser address bar.
+    <div className="w-full relative min-h-screen bg-gray-50 pb-40">
       
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        {/* Added px-5 for more side spacing */}
-        <div className="flex items-center justify-between px-5 py-3">
-          <h1 className="text-xl font-bold text-gray-900 truncate mr-2">Inventory</h1>
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-30 bg-white border-b border-gray-200 w-full shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3">
+          <h1 className="text-xl font-bold text-gray-900 truncate">Inventory</h1>
           
           {isOwner && (
             <div className="flex-shrink-0">
@@ -130,10 +130,9 @@ export default function InventoryPage() {
                 <div className="flex flex-col items-end">
                   <button
                     disabled
-                    className="bg-gray-100 text-gray-400 px-3 py-2 rounded-lg font-semibold flex items-center gap-2 cursor-not-allowed border border-gray-200"
+                    className="bg-gray-100 text-gray-400 p-2 rounded-lg font-semibold flex items-center gap-2 cursor-not-allowed border border-gray-200"
                   >
                     <Plus className="w-5 h-5" />
-                    <span className="hidden md:inline">Limit Reached</span>
                   </button>
                   <Link
                     href="/dashboard/settings/subscription"
@@ -145,36 +144,34 @@ export default function InventoryPage() {
               ) : (
                 <button
                   onClick={handleAddProduct}
-                  // Just the Icon on Mobile to save space
-                  className="bg-emerald-600 text-white p-2 md:px-4 md:py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-emerald-700 transition-colors active:scale-95 shadow-sm"
+                  className="bg-emerald-600 text-white p-2 rounded-lg hover:bg-emerald-700 transition-colors active:scale-95 shadow-sm"
                 >
                   <Plus className="w-6 h-6" />
-                  <span className="hidden md:inline">Add Product</span>
                 </button>
               )}
             </div>
           )}
         </div>
 
-        {/* Search Bar - Matches Padding px-5 */}
-        <div className="bg-white px-5 pb-4 w-full">
+        {/* Search Bar - Integrated into white header to prevent visual mismatch */}
+        <div className="px-4 pb-3 w-full">
          <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input 
             type="text" 
-            placeholder="Search items..." 
+            placeholder="Search..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            // Width 100% inside the padded container
             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors text-base"
           />
         </div>
       </div>
       </div>
 
-      {/* Product List */}
+      {/* Product List Content */}
       <div className="p-4 w-full">
-        {/* Progress Bar for Free Tier */}
+        
+        {/* Progress Bar (Free Tier) */}
         {tier === 'free' && (
           <div className="mb-4 bg-white rounded-lg p-3 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-2">
