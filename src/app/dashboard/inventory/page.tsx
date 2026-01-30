@@ -115,9 +115,9 @@ export default function InventoryPage() {
   }
 
   return (
-    // FIX 1: removed "max-w" constraints. Use plain w-full to match the sticky header.
-    // FIX 2: Increased pb-28 to pb-40 to handle the mobile browser address bar.
-    <div className="w-full relative min-h-screen bg-gray-50 pb-40">
+    // FIX: "max-w-[100vw]" and "overflow-x-hidden" forces the browser to cut off any excess width.
+    // FIX: "min-h-[100dvh]" uses Dynamic Viewport Height to respect the mobile address bar.
+    <div className="w-full max-w-[100vw] overflow-x-hidden min-h-[100dvh] bg-gray-50 pb-32">
       
       {/* Sticky Header */}
       <div className="sticky top-0 z-30 bg-white border-b border-gray-200 w-full shadow-sm">
@@ -153,7 +153,7 @@ export default function InventoryPage() {
           )}
         </div>
 
-        {/* Search Bar - Integrated into white header to prevent visual mismatch */}
+        {/* Search Bar */}
         <div className="px-4 pb-3 w-full">
          <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
