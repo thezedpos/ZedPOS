@@ -115,30 +115,39 @@ export default function InventoryPage() {
   }
 
   return (
-    // FIX: "max-w-[100vw]" and "overflow-x-hidden" forces the browser to cut off any excess width.
-    // FIX: "min-h-[100dvh]" uses Dynamic Viewport Height to respect the mobile address bar.
-    <div className="w-full max-w-[100vw] overflow-x-hidden min-h-[100dvh] bg-gray-50 pb-32">
+    // ROOT: Overflow-x-hidden is CRITICAL here
+    <div className="w-full relative min-h-screen bg-gray-50 pb-40 overflow-x-hidden">
       
       {/* Sticky Header */}
       <div className="sticky top-0 z-30 bg-white border-b border-gray-200 w-full shadow-sm">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-bold text-gray-900 truncate">Inventory</h1>
+        
+        {/* Header Row */}
+        {/* max-w-[100vw] prevents flex children from forcing width expansion */}
+        <div className="flex items-center justify-between px-4 py-3 w-full max-w-[100vw]">
           
+          {/* TITLE */}
+          <h1 className="text-xl font-bold text-gray-900 truncate flex-1 min-w-0 mr-2">
+            Inventory
+          </h1>
+          
+          {/* ACTIONS */}
           {isOwner && (
             <div className="flex-shrink-0">
               {isLimitReached ? (
-                <div className="flex flex-col items-end">
+                // This "Limit Reached" block was causing the overflow. 
+                // We constrain it now.
+                <div className="flex flex-col items-end max-w-[120px]">
                   <button
                     disabled
-                    className="bg-gray-100 text-gray-400 p-2 rounded-lg font-semibold flex items-center gap-2 cursor-not-allowed border border-gray-200"
+                    className="bg-gray-100 text-gray-400 p-2 rounded-lg font-semibold flex items-center justify-center border border-gray-200"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
                   <Link
                     href="/dashboard/settings/subscription"
-                    className="text-[10px] text-emerald-600 hover:text-emerald-700 font-medium underline mt-1"
+                    className="text-[10px] text-emerald-600 hover:text-emerald-700 font-medium underline mt-1 truncate w-full text-right"
                   >
-                    Upgrade
+                    Upgrade Plan
                   </Link>
                 </div>
               ) : (
@@ -153,8 +162,8 @@ export default function InventoryPage() {
           )}
         </div>
 
-        {/* Search Bar */}
-        <div className="px-4 pb-3 w-full">
+        {/* Search Bar Row */}
+        <div className="px-4 pb-3 w-full max-w-[100vw]">
          <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input 
@@ -169,14 +178,14 @@ export default function InventoryPage() {
       </div>
 
       {/* Product List Content */}
-      <div className="p-4 w-full">
+      <div className="p-4 w-full max-w-[100vw]">
         
         {/* Progress Bar (Free Tier) */}
         {tier === 'free' && (
-          <div className="mb-4 bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+          <div className="mb-4 bg-white rounded-lg p-3 shadow-sm border border-gray-200 w-full">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-gray-700">
-                Limit: {products.length}/{maxProducts} used
+                Limit: {products.length}/{maxProducts}
               </p>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-1.5">
@@ -195,7 +204,7 @@ export default function InventoryPage() {
         )}
 
         {filteredProducts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 px-4">
+          <div className="flex flex-col items-center justify-center py-12 px-4 w-full">
             <div className="bg-gray-100 rounded-full p-4 mb-3">
               <Package className="w-12 h-12 text-gray-400" />
             </div>
@@ -217,12 +226,12 @@ export default function InventoryPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 w-full">
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
                 onClick={() => isOwner && handleEditProduct(product)}
-                className={`bg-white rounded-xl p-3 shadow-sm border border-gray-200 relative ${
+                className={`bg-white rounded-xl p-3 shadow-sm border border-gray-200 relative w-full ${
                   isOwner ? 'active:scale-[0.99] transition-transform' : ''
                 }`}
               >
@@ -251,7 +260,7 @@ export default function InventoryPage() {
                   </div>
 
                   {/* Right: Price + Stock */}
-                  <div className="text-right flex flex-col items-end gap-1">
+                  <div className="text-right flex flex-col items-end gap-1 flex-shrink-0">
                     <p className="font-bold text-emerald-700 text-base sm:text-lg whitespace-nowrap">
                       K{product.price.toFixed(2)}
                     </p>
