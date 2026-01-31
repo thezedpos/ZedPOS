@@ -68,6 +68,7 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
         }
         
         // Fetch sale items and join with products
+        // FIX: We now select 'price_at_sale' instead of 'unit_price'
         const { data, error } = await supabase
           .from('sale_items')
           .select(`
@@ -75,7 +76,7 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
             sale_id,
             product_id,
             quantity,
-            unit_price,
+            price_at_sale, 
             products:product_id (
               name,
               tax_type
@@ -92,7 +93,7 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
             sale_id: item.sale_id,
             product_id: item.product_id,
             quantity: item.quantity,
-            unit_price: item.unit_price,
+            unit_price: item.price_at_sale, // <--- MAP DATABASE PRICE TO UI
             product: {
               name: item.products?.name || 'Unknown Product',
               tax_type: item.products?.tax_type || null,
@@ -271,24 +272,30 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
               <table className="w-full text-sm min-w-[300px]">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 text-gray-600 font-semibold">Qty</th>
+                    <th className="text-left py-2 text-gray-600 font-semibold w-12">Qty</th>
                     <th className="text-left py-2 text-gray-600 font-semibold">Item</th>
-                    <th className="text-right py-2 text-gray-600 font-semibold">Price</th>
+                    <th className="text-right py-2 text-gray-600 font-semibold">Unit Price</th>
+                    <th className="text-right py-2 text-gray-600 font-semibold">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-100">
-                      <td className="py-2 text-gray-900">{item.quantity}</td>
-                      <td className="py-2 text-gray-900">
-                        {item.product?.name || 'Unknown'}
-                        {item.product?.tax_type && (
-                          <span className="text-xs text-gray-500 ml-1">
-                            {getTaxTypeCode(item.product.tax_type)}
-                          </span>
-                        )}
+                    <tr key={item.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 text-gray-900 align-top">{item.quantity}</td>
+                      <td className="py-2 text-gray-900 align-top">
+                        <div className="flex flex-col">
+                          <span>{item.product?.name || 'Unknown'}</span>
+                          {item.product?.tax_type && (
+                            <span className="text-[10px] text-gray-400">
+                              {getTaxTypeCode(item.product.tax_type)}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="py-2 text-right text-gray-900">
+                      <td className="py-2 text-right text-gray-600 align-top whitespace-nowrap">
+                        {formatCurrency(item.unit_price)}
+                      </td>
+                      <td className="py-2 text-right text-gray-900 font-medium align-top whitespace-nowrap">
                         {formatCurrency(item.unit_price * item.quantity)}
                       </td>
                     </tr>
@@ -300,7 +307,7 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
             {/* Totals Section */}
             <div className="space-y-2 border-b border-gray-200 pb-4">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal</span>
+                <span className="text-gray-600">Subtotal (Excl. Tax)</span>
                 <span className="text-gray-900 font-medium">
                   {formatCurrency(subtotal)}
                 </span>
@@ -313,7 +320,7 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
                   </span>
                 </div>
               )}
-              <div className="flex justify-between text-lg font-bold pt-2">
+              <div className="flex justify-between text-lg font-bold pt-2 border-t border-dashed border-gray-200 mt-2">
                 <span className="text-gray-900">Total</span>
                 <span className="text-emerald-600">
                   {formatCurrency(sale.total_amount)}
@@ -348,7 +355,7 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
 
             {/* Payment Method */}
             <div className="text-center text-sm text-gray-600 pb-4 border-b border-gray-200">
-              <p className="capitalize">Payment: {sale.payment_method || 'Cash'}</p>
+              <p className="capitalize">Payment: <span className="font-semibold text-gray-800">{sale.payment_method || 'Cash'}</span></p>
             </div>
 
             {/* Footer */}
@@ -376,22 +383,14 @@ export function ReceiptModal({ sale, onClose, onVoided }: ReceiptModalProps) {
               Void Sale
             </button>
           )}
-          {isVoided && (
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition-colors min-h-[44px]"
-            >
-              Close
-            </button>
-          )}
-          {!isVoided && (
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors min-h-[44px]"
-            >
-              Close
-            </button>
-          )}
+          <button
+            onClick={onClose}
+            className={`flex-1 px-4 py-3 text-white rounded-lg font-semibold transition-colors min-h-[44px] ${
+               isVoided ? 'bg-gray-600 hover:bg-gray-700' : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            Close
+          </button>
         </div>
       </div>
 

@@ -22,14 +22,12 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // --- NEW: AUTO-LOGOUT ON MOUNT ---
-  // This ensures the page is always clean for a new user
+  // --- AUTO-LOGOUT ON MOUNT ---
   useEffect(() => {
     const clearSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         await supabase.auth.signOut();
-        console.log("Previous session cleared.");
       }
     };
     clearSession();
@@ -40,7 +38,7 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    // 1. Validation: Passwords Must Match
+    // 1. Validation
     if (password !== confirmPassword) {
       setError("Passwords do not match. Please try again.");
       setLoading(false);
@@ -48,7 +46,7 @@ export default function SignupPage() {
     }
 
     try {
-      // 2. Sign Up the User (Auth)
+      // 2. Sign Up the User
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -64,19 +62,24 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // Calculate Trial End Date (30 Days)
+      // 3. Calculate Dates (30 Days Future)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
+      const isoDate = trialEndDate.toISOString();
 
-      // 3. Create the Business (Start on Pro Trial)
+      // 4. Create the Business (With ALL Date Columns Fixed)
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
           { 
             name: businessName, 
             subscription_tier: 'pro',       
-            subscription_status: 'trial',   
-            trial_ends_at: trialEndDate.toISOString(),
+            subscription_status: 'trial',
+            // --- FIX START: Populate ALL date columns ---
+            trial_ends_at: isoDate,
+            subscription_end_date: isoDate, // <--- The critical fix for your dashboard
+            current_period_end: isoDate,
+            // --- FIX END ---
             created_at: new Date().toISOString() 
           }
         ])
@@ -89,7 +92,7 @@ export default function SignupPage() {
 
       const businessId = businessData.id;
 
-      // 4. Link User to Business (Owner)
+      // 5. Link User (With "Duplicate" Protection)
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
@@ -103,9 +106,13 @@ export default function SignupPage() {
           }
         ]);
 
-      if (memberError) throw new Error(`Failed to set owner: ${memberError.message}`);
+      // --- FIX: Ignore "Duplicate Key" error (Code 23505) ---
+      // If the database trigger already added you, we just ignore this error and move on.
+      if (memberError && memberError.code !== '23505') {
+         throw new Error(`Failed to set owner: ${memberError.message}`);
+      }
 
-      // 5. Success! Redirect
+      // 6. Success!
       router.push('/dashboard');
       router.refresh(); 
 

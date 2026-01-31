@@ -20,7 +20,7 @@ export default function TeamPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Form State
-  const [editingId, setEditingId] = useState<string | null>(null); // <--- Track if we are editing
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newNrc, setNewNrc] = useState("");
   const [newRole, setNewRole] = useState("cashier");
@@ -37,7 +37,7 @@ export default function TeamPage() {
           .from('business_members')
           .select('*')
           .eq('business_id', businessId)
-          .order('created_at', { ascending: true }); // Keep list stable
+          .order('created_at', { ascending: true });
         
         if (data) setStaff(data);
         if (error) console.error("Error loading team:", error);
@@ -71,11 +71,10 @@ export default function TeamPage() {
     setIsModalOpen(true);
   };
 
-  // --- SAVE HANDLER (Create OR Update) ---
+  // --- SAVE HANDLER ---
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Permission check (only strictly needed for ADD, but good to keep for EDIT too)
     if (!canAddStaff && !editingId) {
       alert("Please upgrade to Pro to add more staff!");
       return;
@@ -85,7 +84,7 @@ export default function TeamPage() {
     
     try {
       if (editingId) {
-        // --- UPDATE EXISTING ---
+        // --- UPDATE ---
         const { data, error } = await supabase
           .from('business_members')
           .update({
@@ -99,12 +98,10 @@ export default function TeamPage() {
           .single();
 
         if (error) throw error;
-
-        // Update local state without refresh
         setStaff(staff.map(s => s.id === editingId ? data : s));
 
       } else {
-        // --- CREATE NEW ---
+        // --- CREATE ---
         const { data, error } = await supabase
           .from('business_members')
           .insert([{ 
@@ -121,7 +118,6 @@ export default function TeamPage() {
         setStaff([...staff, data]);
       }
 
-      // Close and Reset
       setIsModalOpen(false);
       setEditingId(null);
       setNewName("");
@@ -136,9 +132,9 @@ export default function TeamPage() {
     }
   };
 
-  // --- DELETE STAFF HANDLER ---
+  // --- DELETE HANDLER ---
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this staff member? This cannot be undone.")) return;
+    if (!confirm("Are you sure you want to remove this staff member?")) return;
     
     try {
       const { error } = await supabase.from('business_members').delete().eq('id', id);
@@ -153,7 +149,9 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 pb-24">
+    // FIX 1: Added overflow-x-hidden and w-full to prevent horizontal scrolling
+    <div className="max-w-5xl mx-auto p-4 md:p-8 pb-24 w-full overflow-x-hidden">
+      
       {/* Navigation */}
       <button 
         onClick={() => router.back()} 
@@ -180,7 +178,7 @@ export default function TeamPage() {
               }
             }
           }}
-          className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+          className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             canAddStaff 
               ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm' 
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -192,7 +190,7 @@ export default function TeamPage() {
       </div>
 
       {/* Staff List Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
         {loading ? (
           <div className="p-12 flex flex-col items-center justify-center text-gray-500">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-3" />
@@ -204,8 +202,8 @@ export default function TeamPage() {
             <p>No staff members yet. Add one to get started.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[600px]">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
@@ -219,7 +217,7 @@ export default function TeamPage() {
                 {staff.map((member) => (
                   <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900">{member.name || "Owner"}</td>
-                    <td className="px-6 py-4 text-gray-500 text-sm font-mono">
+                    <td className="px-6 py-4 text-gray-500 text-sm font-mono whitespace-nowrap">
                       {member.nrc_number || '—'}
                     </td>
                     <td className="px-6 py-4">
@@ -239,20 +237,15 @@ export default function TeamPage() {
                     <td className="px-6 py-4 text-right">
                       {member.role !== 'owner' && (
                         <div className="flex items-center justify-end gap-2">
-                          {/* EDIT BUTTON */}
                           <button 
                             onClick={() => openEditModal(member)}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="Edit Staff"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
-                          
-                          {/* DELETE BUTTON */}
                           <button 
                             onClick={() => handleDelete(member.id)}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            title="Remove Staff"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -270,7 +263,7 @@ export default function TeamPage() {
       {/* Unified Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl scale-100">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               {editingId ? "Edit Staff Details" : "Add New Staff"}
             </h2>
@@ -285,7 +278,8 @@ export default function TeamPage() {
                   required
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow"
+                  // FIX 2: Added text-base md:text-sm to prevent iOS zoom
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow text-base md:text-sm"
                   placeholder="e.g. Mary Banda"
                 />
               </div>
@@ -301,7 +295,8 @@ export default function TeamPage() {
                     type="text" 
                     value={newNrc}
                     onChange={(e) => setNewNrc(e.target.value)}
-                    className="w-full pl-9 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow uppercase"
+                    // FIX 2: Added text-base md:text-sm to prevent iOS zoom
+                    className="w-full pl-9 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow uppercase text-base md:text-sm"
                     placeholder="123456/10/1"
                   />
                 </div>
@@ -313,7 +308,8 @@ export default function TeamPage() {
                 <select 
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                  // FIX 2: Added text-base md:text-sm to prevent iOS zoom
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-base md:text-sm"
                 >
                   <option value="cashier">Cashier (POS Only)</option>
                   <option value="manager">Manager (Inventory & Reports)</option>
@@ -330,6 +326,7 @@ export default function TeamPage() {
                   pattern="\d{4}"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                  // FIX 2: Ensure text is large enough on mobile
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none font-mono tracking-widest text-center text-lg"
                   placeholder="0000"
                 />
@@ -344,14 +341,14 @@ export default function TeamPage() {
                     setIsModalOpen(false);
                     setEditingId(null);
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 font-medium transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 font-medium transition-colors text-base md:text-sm"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 transition-colors flex justify-center items-center shadow-md"
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 transition-colors flex justify-center items-center shadow-md text-base md:text-sm"
                 >
                   {saving ? <Loader2 className="animate-spin w-5 h-5" /> : (editingId ? "Save Changes" : "Create Staff")}
                 </button>
