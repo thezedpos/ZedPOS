@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form State (Still used for UI feedback, but logic uses FormData)
+  // Form State (Used for UI feedback only)
   const [businessName, setBusinessName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,35 +38,38 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    // --- FIX: Get values directly from the form (Bypasses State Lag) ---
+    // --- CRITICAL FIX: Extract values directly from the form event ---
+    // This bypasses any React state delay or syncing issues.
     const formData = new FormData(e.currentTarget);
-    const rawBusiness = formData.get("businessName") as string;
-    const rawName = formData.get("fullName") as string;
+    const rawBusinessName = formData.get("businessName") as string;
+    const rawFullName = formData.get("fullName") as string;
     const rawEmail = formData.get("email") as string;
     const rawPassword = formData.get("password") as string;
-    const rawConfirm = formData.get("confirmPassword") as string;
+    const rawConfirmPassword = formData.get("confirmPassword") as string;
 
-    // 1. Strict Validation
-    if (!rawEmail || !rawPassword || !rawName || !rawBusiness) {
-      setError("Please fill in all fields (Business Name, Full Name, Email, Password).");
+    console.log("Attempting Signup with:", { rawEmail, hasPassword: !!rawPassword });
+
+    // 1. Strict Validation Check
+    if (!rawEmail || !rawPassword || !rawFullName || !rawBusinessName) {
+      setError("Please fill in all fields before signing up.");
       setLoading(false);
-      return;
+      return; // STOP HERE
     }
 
-    if (rawPassword !== rawConfirm) {
-      setError("Passwords do not match.");
+    if (rawPassword !== rawConfirmPassword) {
+      setError("Passwords do not match. Please try again.");
       setLoading(false);
-      return;
+      return; // STOP HERE
     }
 
     try {
-      // 2. Sign Up (Using the raw values)
+      // 2. Sign Up the User (Using RAW values)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: rawEmail,
         password: rawPassword,
         options: {
           data: {
-            full_name: rawName,
+            full_name: rawFullName,
           },
         },
       });
@@ -81,12 +84,12 @@ export default function SignupPage() {
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 4. Create Business
+      // 4. Create the Business
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
           { 
-            name: rawBusiness, 
+            name: rawBusinessName, 
             subscription_tier: 'pro',       
             subscription_status: 'trial',
             trial_ends_at: isoDate,
@@ -102,32 +105,40 @@ export default function SignupPage() {
         throw new Error(`Failed to create business: ${businessError.message}`);
       }
 
+      const businessId = businessData.id;
+
       // 5. Link User
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
           {
-            business_id: businessData.id,
+            business_id: businessId,
             user_id: userId,
-            name: rawName,
+            name: rawFullName,
             role: 'owner',
             email: rawEmail,
             pin_code: '0000'
           }
         ]);
 
-      // Ignore "Duplicate Key" error (Code 23505) if trigger ran first
+      // Ignore "Duplicate Key" error if database trigger already ran
       if (memberError && memberError.code !== '23505') {
          throw new Error(`Failed to set owner: ${memberError.message}`);
       }
 
       // 6. Success!
+      console.log("Signup Successful!");
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error("Signup Error:", err);
-      setError(err.message || "Sign up failed.");
+      // Friendly error message for "Anonymous" issue if it somehow still happens
+      if (err.message?.includes("anonymous")) {
+         setError("Please enter a valid email and password.");
+      } else {
+         setError(err.message || "Something went wrong during sign up.");
+      }
     } finally {
       setLoading(false);
     }
@@ -162,7 +173,7 @@ export default function SignupPage() {
             <div className="relative">
               <Building2 className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="businessName" 
+                name="businessName"
                 type="text"
                 required
                 value={businessName}
