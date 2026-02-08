@@ -318,10 +318,12 @@ Generated: ${new Date().toLocaleString()}
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    // FIX 1: Nuclear Layout Fix (Strictly contained wrapper)
+    <div className="w-full max-w-[100vw] overflow-x-hidden min-h-screen bg-gray-50">
+      
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="flex items-center justify-between p-4">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 w-full">
+        <div className="flex items-center justify-between p-4 max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
@@ -338,7 +340,7 @@ Generated: ${new Date().toLocaleString()}
           </div>
         </div>
         {/* Mode Toggle */}
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 max-w-5xl mx-auto">
           <div className="inline-flex rounded-lg bg-gray-100 p-1">
             <button
               type="button"
@@ -362,7 +364,7 @@ Generated: ${new Date().toLocaleString()}
         </div>
       </div>
 
-      <div className="p-4 space-y-6 print:p-0">
+      <div className="p-4 space-y-6 print:p-0 w-full max-w-5xl mx-auto pb-24">
         {/* Big Numbers Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:grid-cols-3">
           <div className="bg-white rounded-lg p-6 shadow-sm border-2 border-emerald-500 print:border print:border-gray-300">
@@ -397,7 +399,7 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Tax Summary Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:border print:border-gray-300">
+        <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
             Tax Summary
@@ -419,7 +421,7 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Product Performance */}
-        <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:border print:border-gray-300">
+        <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <Package className="w-5 h-5 text-emerald-600" />
             {mode === 'daily' ? 'Top 5 Products Sold Today' : 'Top 5 Products This Month'}
@@ -429,22 +431,23 @@ Generated: ${new Date().toLocaleString()}
               {mode === 'daily' ? 'No products sold today' : 'No products sold this month'}
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 w-full">
               {topProducts.map((product, index) => (
+                // FIX 2: min-w-0 on flex items prevents blowout
                 <div
                   key={product.product_id}
-                  className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
+                  className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 w-full min-w-0"
                 >
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">{product.product_name}</p>
+                      <p className="font-semibold text-gray-900 truncate pr-2">{product.product_name}</p>
                       <p className="text-sm text-gray-500">Qty: {product.total_quantity}</p>
                     </div>
                   </div>
-                  <p className="text-lg font-bold text-emerald-600 ml-4">
+                  <p className="text-lg font-bold text-emerald-600 ml-2 whitespace-nowrap">
                     {formatCurrency(product.total_revenue)}
                   </p>
                 </div>
@@ -454,7 +457,7 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 print:hidden">
+        <div className="flex flex-col sm:flex-row gap-3 print:hidden">
           <button
             onClick={handlePrint}
             className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-4 rounded-lg font-bold text-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
