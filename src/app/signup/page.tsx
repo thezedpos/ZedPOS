@@ -38,7 +38,15 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    // 1. Validation
+    // --- FIX 1: Check for Empty Fields First ---
+    // This prevents the "Anonymous sign-ins are disabled" error
+    if (!email.trim() || !password.trim() || !fullName.trim() || !businessName.trim()) {
+      setError("Please fill in all fields (Business Name, Full Name, Email, Password).");
+      setLoading(false);
+      return;
+    }
+
+    // --- FIX 2: Check Password Match ---
     if (password !== confirmPassword) {
       setError("Passwords do not match. Please try again.");
       setLoading(false);
@@ -46,7 +54,7 @@ export default function SignupPage() {
     }
 
     try {
-      // 2. Sign Up the User
+      // 3. Sign Up the User
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -62,12 +70,12 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // 3. Calculate Dates (30 Days Future)
+      // 4. Calculate Dates (30 Days Future)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 4. Create the Business (With ALL Date Columns Fixed)
+      // 5. Create the Business
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
@@ -75,11 +83,9 @@ export default function SignupPage() {
             name: businessName, 
             subscription_tier: 'pro',       
             subscription_status: 'trial',
-            // --- FIX START: Populate ALL date columns ---
             trial_ends_at: isoDate,
-            subscription_end_date: isoDate, // <--- The critical fix for your dashboard
+            subscription_end_date: isoDate,
             current_period_end: isoDate,
-            // --- FIX END ---
             created_at: new Date().toISOString() 
           }
         ])
@@ -92,7 +98,7 @@ export default function SignupPage() {
 
       const businessId = businessData.id;
 
-      // 5. Link User (With "Duplicate" Protection)
+      // 6. Link User (With Duplicate Safety)
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
@@ -106,13 +112,11 @@ export default function SignupPage() {
           }
         ]);
 
-      // --- FIX: Ignore "Duplicate Key" error (Code 23505) ---
-      // If the database trigger already added you, we just ignore this error and move on.
       if (memberError && memberError.code !== '23505') {
          throw new Error(`Failed to set owner: ${memberError.message}`);
       }
 
-      // 6. Success!
+      // 7. Success!
       router.push('/dashboard');
       router.refresh(); 
 
