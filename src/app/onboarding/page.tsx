@@ -87,11 +87,23 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 1. Insert new business
+      // --- CALCULATE TRIAL DATES ---
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 30); // 30 Days from now
+      const isoDate = trialEndDate.toISOString();
+
+      // 1. Insert new business (WITH TRIAL DATA)
+      // This matches the logic from the Signup page exactly.
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert({
           name: shopName.trim(),
+          subscription_tier: 'pro',       
+          subscription_status: 'trial',   
+          trial_ends_at: isoDate,
+          subscription_end_date: isoDate, 
+          current_period_end: isoDate,
+          created_at: new Date().toISOString()
         })
         .select('id, name')
         .single();
@@ -112,15 +124,15 @@ export default function OnboardingPage() {
           email: user.email
         });
 
-      // --- FIX: Ignore "Duplicate Key" error (Code 23505) ---
-      // If the DB trigger already added you, we just ignore this error.
+      // Ignore "Duplicate Key" error (Code 23505) if trigger ran first
       if (memberError && memberError.code !== '23505') {
         setError(memberError.message || 'Failed to link user to business');
         setLoading(false);
         return;
       }
 
-      // 3. Safety Check: Ensure Subscription Exists
+      // 3. Safety Check: Ensure Subscription Record Exists
+      // (This is a backup table, but good to keep in sync)
       const { data: sub } = await supabase
         .from('subscriptions')
         .select('id')
@@ -133,7 +145,7 @@ export default function OnboardingPage() {
           plan_type: 'premium',
           status: 'trial',
           trial_start_date: new Date().toISOString(),
-          trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          trial_ends_at: isoDate
         });
       }
 
