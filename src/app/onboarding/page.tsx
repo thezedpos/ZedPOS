@@ -24,13 +24,13 @@ export default function OnboardingPage() {
         setUser(user);
       } else {
         setUser(null);
-        setCheckingShop(false); // No user – stop spinning so auth guard can run
+        setCheckingShop(false);
       }
     };
     fetchUser();
   }, [supabase]);
 
-  // Auth guard: redirect to login when we've finished checking and there is no user
+  // Auth guard
   useEffect(() => {
     if (!checkingShop && user === null) {
       router.replace('/login');
@@ -38,43 +38,31 @@ export default function OnboardingPage() {
     }
   }, [checkingShop, user, router]);
 
-  // Check if user already has a shop on page load
+  // Check if user already has a shop
   useEffect(() => {
-    // STOP! Do not proceed if auth is not ready yet.
-    if (!user || !supabase) {
-      return;
-    }
+    if (!user || !supabase) return;
 
     const checkExistingShop = async () => {
       try {
         setCheckingShop(true);
 
-        // --- DEBUG START ---
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('DEBUG: Active Session User ID:', session?.user?.id);
-        console.log('DEBUG: Context User ID:', user?.id);
-        // --- DEBUG END ---
-
-        // Check if user already has a business_members record
         const { data: existingMembers, error: memberError } = await supabase
           .from('business_members')
-          .select('id') // We only need the ID to know it exists
+          .select('id')
           .eq('user_id', user.id)
-          .limit(1); // Just give us the first one you find
+          .limit(1);
 
         if (memberError) {
-          console.error('Error checking business membership:', JSON.stringify(memberError, null, 2));
+          console.error('Error checking business membership:', memberError);
           setCheckingShop(false);
           return;
         }
 
-        // If user already has at least one shop, redirect to dashboard
         if (existingMembers && existingMembers.length > 0) {
           router.push('/dashboard');
           return;
         }
 
-        // No shop found, show onboarding form
         setCheckingShop(false);
       } catch (err) {
         console.error('Error checking shop:', err);
@@ -91,7 +79,6 @@ export default function OnboardingPage() {
     setError(null);
 
     try {
-      // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
@@ -100,14 +87,13 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 1. Insert new business into businesses table (NAME ONLY)
-      // We removed subscription_status and trial_started_at because they belong in a different table now.
+      // 1. Insert new business
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert({
           name: shopName.trim(),
         })
-        .select('id, name') // Select only columns we know exist
+        .select('id, name')
         .single();
 
       if (businessError || !businessData) {
@@ -116,24 +102,25 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 2. Insert business_members row linking user as 'owner'
+      // 2. Insert business_members row
       const { error: memberError } = await supabase
         .from('business_members')
         .insert({
           user_id: user.id,
           business_id: businessData.id,
           role: 'owner',
-          email: user.email // Ensure this column exists in your schema, otherwise remove it
+          email: user.email
         });
 
-      if (memberError) {
+      // --- FIX: Ignore "Duplicate Key" error (Code 23505) ---
+      // If the DB trigger already added you, we just ignore this error.
+      if (memberError && memberError.code !== '23505') {
         setError(memberError.message || 'Failed to link user to business');
         setLoading(false);
         return;
       }
 
       // 3. Safety Check: Ensure Subscription Exists
-      // (The SQL Trigger usually does this, but we do it manually just in case)
       const { data: sub } = await supabase
         .from('subscriptions')
         .select('id')
@@ -150,11 +137,10 @@ export default function OnboardingPage() {
         });
       }
 
-      // 4. Refresh business context
+      // 4. Refresh & Redirect
       await refreshBusiness();
-
-      // 5. Redirect to dashboard
       router.push('/dashboard');
+
     } catch (err) {
       console.error('Onboarding error:', err);
       setError('An unexpected error occurred');
@@ -162,26 +148,20 @@ export default function OnboardingPage() {
     }
   };
 
-  // Auth guard: show nothing while redirecting unauthenticated users
   if (!checkingShop && user === null) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 flex flex-col items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin h-8 w-8 text-emerald-600" />
-          <p className="text-gray-600 font-medium">Redirecting to login...</p>
-        </div>
+        <Loader2 className="animate-spin h-8 w-8 text-emerald-600 mb-4" />
+        <p className="text-gray-600 font-medium">Redirecting to login...</p>
       </div>
     );
   }
 
-  // Show loading spinner while checking for existing shop
   if (checkingShop) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 flex flex-col items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin h-8 w-8 text-emerald-600" />
-          <p className="text-gray-600 font-medium">Loading your shop...</p>
-        </div>
+        <Loader2 className="animate-spin h-8 w-8 text-emerald-600 mb-4" />
+        <p className="text-gray-600 font-medium">Loading your shop...</p>
       </div>
     );
   }
@@ -218,7 +198,7 @@ export default function OnboardingPage() {
                 onChange={(e) => setShopName(e.target.value)}
                 placeholder="e.g., My Store"
                 disabled={loading}
-                className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base disabled:bg-gray-50 disabled:text-gray-500"
+                className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base"
               />
               <p className="mt-2 text-xs text-gray-500">
                 You can change this later in settings
@@ -234,7 +214,7 @@ export default function OnboardingPage() {
             <button
               type="submit"
               disabled={loading || !shopName.trim()}
-              className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 transition-colors"
             >
               {loading ? (
                 <>
@@ -245,10 +225,6 @@ export default function OnboardingPage() {
                 'Create Shop'
               )}
             </button>
-
-            <p className="text-xs text-center text-gray-500">
-              You'll start with a 30-day Premium trial
-            </p>
           </form>
         </div>
       </div>
