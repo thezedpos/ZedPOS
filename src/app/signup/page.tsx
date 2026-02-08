@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form State
+  // Form State (Still used for UI feedback, but logic uses FormData)
   const [businessName, setBusinessName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -33,34 +33,40 @@ export default function SignupPage() {
     clearSession();
   }, [supabase]);
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // --- FIX 1: Check for Empty Fields First ---
-    // This prevents the "Anonymous sign-ins are disabled" error
-    if (!email.trim() || !password.trim() || !fullName.trim() || !businessName.trim()) {
+    // --- FIX: Get values directly from the form (Bypasses State Lag) ---
+    const formData = new FormData(e.currentTarget);
+    const rawBusiness = formData.get("businessName") as string;
+    const rawName = formData.get("fullName") as string;
+    const rawEmail = formData.get("email") as string;
+    const rawPassword = formData.get("password") as string;
+    const rawConfirm = formData.get("confirmPassword") as string;
+
+    // 1. Strict Validation
+    if (!rawEmail || !rawPassword || !rawName || !rawBusiness) {
       setError("Please fill in all fields (Business Name, Full Name, Email, Password).");
       setLoading(false);
       return;
     }
 
-    // --- FIX 2: Check Password Match ---
-    if (password !== confirmPassword) {
-      setError("Passwords do not match. Please try again.");
+    if (rawPassword !== rawConfirm) {
+      setError("Passwords do not match.");
       setLoading(false);
       return;
     }
 
     try {
-      // 3. Sign Up the User
+      // 2. Sign Up (Using the raw values)
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: rawEmail,
+        password: rawPassword,
         options: {
           data: {
-            full_name: fullName,
+            full_name: rawName,
           },
         },
       });
@@ -70,17 +76,17 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // 4. Calculate Dates (30 Days Future)
+      // 3. Calculate Dates (30 Days Future)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 5. Create the Business
+      // 4. Create Business
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
           { 
-            name: businessName, 
+            name: rawBusiness, 
             subscription_tier: 'pro',       
             subscription_status: 'trial',
             trial_ends_at: isoDate,
@@ -96,33 +102,32 @@ export default function SignupPage() {
         throw new Error(`Failed to create business: ${businessError.message}`);
       }
 
-      const businessId = businessData.id;
-
-      // 6. Link User (With Duplicate Safety)
+      // 5. Link User
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
           {
-            business_id: businessId,
+            business_id: businessData.id,
             user_id: userId,
-            name: fullName,
+            name: rawName,
             role: 'owner',
-            email: email,
+            email: rawEmail,
             pin_code: '0000'
           }
         ]);
 
+      // Ignore "Duplicate Key" error (Code 23505) if trigger ran first
       if (memberError && memberError.code !== '23505') {
          throw new Error(`Failed to set owner: ${memberError.message}`);
       }
 
-      // 7. Success!
+      // 6. Success!
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error("Signup Error:", err);
-      setError(err.message || "Something went wrong during sign up.");
+      setError(err.message || "Sign up failed.");
     } finally {
       setLoading(false);
     }
@@ -157,6 +162,7 @@ export default function SignupPage() {
             <div className="relative">
               <Building2 className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
+                name="businessName" 
                 type="text"
                 required
                 value={businessName}
@@ -173,6 +179,7 @@ export default function SignupPage() {
             <div className="relative">
               <User className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
+                name="fullName"
                 type="text"
                 required
                 value={fullName}
@@ -189,6 +196,7 @@ export default function SignupPage() {
             <div className="relative">
               <Mail className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
+                name="email"
                 type="email"
                 required
                 value={email}
@@ -206,6 +214,7 @@ export default function SignupPage() {
               <div className="relative">
                 <Lock className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
                 <input
+                  name="password"
                   type="password"
                   required
                   minLength={6}
@@ -223,6 +232,7 @@ export default function SignupPage() {
               <div className="relative">
                 <CheckCircle className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
                 <input
+                  name="confirmPassword"
                   type="password"
                   required
                   minLength={6}
