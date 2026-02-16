@@ -33,34 +33,29 @@ export default function SignupPage() {
     clearSession();
   }, [supabase]);
 
-  // --- BUTTON LOCK LOGIC ---
-  // The button is disabled unless all fields have text
-  const isFormValid = 
-    businessName.trim().length > 0 &&
-    fullName.trim().length > 0 &&
-    email.trim().length > 0 &&
+  // --- VALIDATION LOGIC ---
+  // We check if the State variables have text.
+  const isValid = 
+    businessName.length > 0 &&
+    fullName.length > 0 &&
+    email.length > 0 &&
     password.length >= 6 &&
     confirmPassword.length > 0;
 
-  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // 1. Get Values (Double Check)
-    const formData = new FormData(e.currentTarget);
-    const rawEmail = formData.get("email") as string;
-    const rawPassword = formData.get("password") as string;
-    const rawName = formData.get("fullName") as string;
-    const rawBusiness = formData.get("businessName") as string;
-
-    // 2. JS Validation (The "Stop" Gate)
-    if (!rawEmail || !rawPassword || !rawName || !rawBusiness) {
-      setError("Please fill in all fields.");
+    // --- STOP GATE 1: CHECK STATE ---
+    // If state is empty, stop immediately. Do not pass Go.
+    if (!email || !password || !fullName || !businessName) {
+      setError("Please fill in all fields to continue.");
       setLoading(false);
       return; 
     }
 
+    // --- STOP GATE 2: PASSWORDS ---
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       setLoading(false);
@@ -68,13 +63,14 @@ export default function SignupPage() {
     }
 
     try {
-      // 3. Attempt Signup
+      // 3. ATTEMPT SIGNUP
+      // We use the State variables (email, password) directly.
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: rawEmail,
-        password: rawPassword,
+        email: email,
+        password: password,
         options: {
           data: {
-            full_name: rawName,
+            full_name: fullName,
           },
         },
       });
@@ -84,17 +80,17 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // 4. Calculate Dates (30 Day Trial)
+      // 4. CALCULATE DATES
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 5. Create Business
+      // 5. CREATE BUSINESS
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
           { 
-            name: rawBusiness, 
+            name: businessName, 
             subscription_tier: 'pro',       
             subscription_status: 'trial',
             trial_ends_at: isoDate,
@@ -108,16 +104,16 @@ export default function SignupPage() {
 
       if (businessError) throw new Error(`Business Error: ${businessError.message}`);
 
-      // 6. Link User
+      // 6. LINK USER
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
           {
             business_id: businessData.id,
             user_id: userId,
-            name: rawName,
+            name: fullName,
             role: 'owner',
-            email: rawEmail,
+            email: email,
             pin_code: '0000'
           }
         ]);
@@ -126,17 +122,15 @@ export default function SignupPage() {
          throw new Error(`Member Error: ${memberError.message}`);
       }
 
-      // 7. Success
+      // 7. SUCCESS
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error("Signup Error:", err);
-      
-      // --- SAFETY NET: Catch "Anonymous" error and rewrite it ---
-      const errMsg = err.message?.toLowerCase() || "";
-      if (errMsg.includes("anonymous") || errMsg.includes("validation failed")) {
-         setError("Please enter a valid email and password to create an account.");
+      // Catch "Anonymous" error specifically
+      if (err.message?.toLowerCase().includes("anonymous")) {
+         setError("Please enter a valid email and password.");
       } else {
          setError(err.message || "Something went wrong.");
       }
@@ -174,7 +168,6 @@ export default function SignupPage() {
             <div className="relative">
               <Building2 className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="businessName"
                 type="text"
                 required
                 value={businessName}
@@ -191,7 +184,6 @@ export default function SignupPage() {
             <div className="relative">
               <User className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="fullName"
                 type="text"
                 required
                 value={fullName}
@@ -208,7 +200,6 @@ export default function SignupPage() {
             <div className="relative">
               <Mail className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="email"
                 type="email"
                 required
                 value={email}
@@ -226,7 +217,6 @@ export default function SignupPage() {
               <div className="relative">
                 <Lock className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
                 <input
-                  name="password"
                   type="password"
                   required
                   minLength={6}
@@ -244,7 +234,6 @@ export default function SignupPage() {
               <div className="relative">
                 <CheckCircle className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
                 <input
-                  name="confirmPassword"
                   type="password"
                   required
                   minLength={6}
@@ -266,12 +255,12 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            // --- BUTTON LOCK: Disabled until form is valid ---
-            disabled={!isFormValid || loading}
+            disabled={!isValid || loading}
+            // FIX: "pointer-events-none" physically prevents clicks if form is invalid
             className={`w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center shadow-lg mt-4 ${
-              !isFormValid || loading
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed" // Grey style
-                : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-100 active:scale-[0.98]" // Green style
+              !isValid || loading
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none" 
+                : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-100 active:scale-[0.98]"
             }`}
           >
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : (
