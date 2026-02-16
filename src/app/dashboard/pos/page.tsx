@@ -9,7 +9,7 @@ import { CartDrawer } from '@/components/pos/CartDrawer';
 import { CheckoutModal } from '@/components/pos/CheckoutModal';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { CustomerForm } from '@/components/customers/CustomerForm';
-import { Loader2, ShoppingCart, Scan, Lock, User, LogOut, CheckCircle } from 'lucide-react';
+import { Loader2, ShoppingCart, Scan, Lock, User } from 'lucide-react';
 
 // --- TYPES ---
 interface Product {
@@ -57,14 +57,14 @@ export default function POSPage() {
   const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
 
   // --- LOCK SCREEN STATE ---
-  const [isLocked, setIsLocked] = useState(true); // Default to LOCKED
+  const [isLocked, setIsLocked] = useState(true);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [pinError, setPinError] = useState(false);
 
-  // 1. Fetch Data (Products, Customers, AND Staff)
+  // 1. Fetch Data
   useEffect(() => {
     async function loadData() {
       if (!businessId) return;
@@ -86,13 +86,17 @@ export default function POSPage() {
           .order('full_name');
         if (custData) setCustomers(custData as Customer[]);
 
-        // Staff (For Lock Screen)
+        // Staff (Safe Fetch)
         const { data: staffData } = await supabase
           .from('business_members')
           .select('id, name, role, pin_code')
           .eq('business_id', businessId)
           .order('name');
-        if (staffData) setStaffMembers(staffData);
+        
+        // SAFEGUARD: Ensure data exists before setting state
+        if (staffData) {
+            setStaffMembers(staffData as StaffMember[]);
+        }
 
       } catch (err) {
         console.error("Load Error:", err);
@@ -108,12 +112,15 @@ export default function POSPage() {
     e.preventDefault();
     const staff = staffMembers.find(s => s.id === selectedStaffId);
     
-    if (staff && staff.pin_code === pinInput) {
+    // Check if PIN matches (Handle null pins safely)
+    const storedPin = staff?.pin_code || "";
+    
+    if (staff && storedPin === pinInput) {
       setCurrentStaff(staff);
       setIsLocked(false);
       setPinInput("");
       setPinError(false);
-      setToast({ message: `Welcome, ${staff.name}!`, type: 'success' });
+      setToast({ message: `Welcome, ${staff.name || 'User'}!`, type: 'success' });
       setTimeout(() => setToast(null), 2000);
     } else {
       setPinError(true);
@@ -130,7 +137,7 @@ export default function POSPage() {
     setPinInput("");
   };
 
-  // --- POS LOGIC ---
+  // --- POS ACTIONS ---
 
   const handleCustomerCreated = (newCustomer: { id: string; full_name: string; phone_number: string | null } | undefined) => {
     setShowCreateCustomerModal(false);
@@ -181,12 +188,8 @@ export default function POSPage() {
   };
 
   const handleCheckout = async (paymentMethod: string) => {
-    if (!businessId) {
-      alert("System Error: Business ID missing. Please refresh.");
-      return;
-    }
+    if (!businessId) return;
 
-    // Tax Calc
     let total = 0;
     let taxAmount = 0;
     cart.forEach((item) => {
@@ -204,7 +207,6 @@ export default function POSPage() {
       return;
     }
 
-    // IMPORTANT: Record WHO made the sale (staff_id)
     const payload = {
       business_id: businessId,
       total_amount: total,
@@ -216,8 +218,8 @@ export default function POSPage() {
         quantity: item.quantity,
         unit_price: item.price
       })),
-      staff_id: currentStaff?.id || null, // <--- Add this column to sales table later if you want strict tracking
-      staff_name: currentStaff?.name || "Unknown" // Just for metadata if needed
+      staff_id: currentStaff?.id || null,
+      staff_name: currentStaff?.name || "Unknown"
     };
 
     try {
@@ -225,7 +227,7 @@ export default function POSPage() {
         p_body: payload
       });
 
-      if (error) throw new Error(error.message || "Transaction failed");
+      if (error) throw new Error(error.message);
 
       if (paymentMethod === 'credit' && selectedCustomer) {
         const newBalance = (selectedCustomer.balance ?? 0) + total;
@@ -238,17 +240,12 @@ export default function POSPage() {
       setIsCheckoutOpen(false);
       setIsCartOpen(false);
 
-      // OPTIONAL: Auto-Lock after sale?
-      // Uncomment next line if you want strict security
-      // handleLock(); 
-      
     } catch (err: any) {
       console.error("Checkout Exception:", err);
-      alert(`Checkout Failed: ${err.message || JSON.stringify(err)}`);
+      alert(`Checkout Failed: ${err.message}`);
     }
   };
 
-  // --- RENDER LOADING ---
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
   // --- RENDER LOCK SCREEN ---
@@ -270,10 +267,13 @@ export default function POSPage() {
                     onClick={() => setSelectedStaffId(staff.id)}
                     className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-gray-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all aspect-square"
                   >
+                    {/* CRASH FIX: Safe access to name */}
                     <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-2 text-xl font-bold text-gray-600">
-                      {staff.name.charAt(0).toUpperCase()}
+                      {(staff.name || "U").charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-semibold text-gray-800 text-center">{staff.name}</span>
+                    <span className="font-semibold text-gray-800 text-center text-sm">
+                      {staff.name || "Unknown"}
+                    </span>
                     <span className="text-xs text-gray-500 capitalize">{staff.role}</span>
                   </button>
                 ))}
@@ -296,7 +296,7 @@ export default function POSPage() {
                     ← Back to User List
                   </button>
                   <h3 className="text-lg font-bold text-gray-900">
-                    Hello, {staffMembers.find(s => s.id === selectedStaffId)?.name}
+                    Hello, {staffMembers.find(s => s.id === selectedStaffId)?.name || "User"}
                   </h3>
                   <p className="text-gray-500 text-sm">Enter your PIN to start selling</p>
                 </div>
@@ -330,11 +330,6 @@ export default function POSPage() {
             )}
           </div>
         </div>
-        
-        {/* Navigation Link for Owner fallback */}
-        <div className="mt-8 text-center text-gray-500 text-sm">
-          <p>Admin Dashboard is accessible via main menu.</p>
-        </div>
       </div>
     );
   }
@@ -342,16 +337,13 @@ export default function POSPage() {
   // --- RENDER UNLOCKED POS ---
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
-      {/* Top Bar: Scanner + Lock Button */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
-        {/* Current User Info */}
         <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
            <User className="w-4 h-4" />
            <span className="font-medium">{currentStaff?.name || "Owner"}</span>
         </div>
 
         <div className="flex gap-2">
-          {/* Lock Button */}
           <button
             onClick={handleLock}
             className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors"
@@ -359,8 +351,6 @@ export default function POSPage() {
             <Lock className="w-4 h-4" />
             <span className="hidden sm:inline">Lock Screen</span>
           </button>
-
-          {/* Scanner Button */}
           <button
             onClick={() => {
               if (!canUseScanner) {
@@ -383,13 +373,6 @@ export default function POSPage() {
         </div>
       </div>
 
-      {!canUseScanner && (
-        <div className="bg-white px-4 pb-2 flex justify-end">
-          <p className="text-xs text-gray-500">Scanner locked. Upgrade to enable.</p>
-        </div>
-      )}
-
-      {/* Product Grid Area */}
       <div className="flex-1 overflow-hidden">
         <ProductGrid 
           products={products} 
@@ -397,7 +380,6 @@ export default function POSPage() {
         />
       </div>
 
-      {/* Floating Cart Button */}
       {!isCartOpen && cart.length > 0 && (
         <div className="fixed bottom-24 right-4 z-40 md:hidden">
           <button 
@@ -406,13 +388,12 @@ export default function POSPage() {
           >
             <ShoppingCart className="w-5 h-5" />
             <span className="font-bold text-sm">
-              View Cart ({cart.length}) - K{cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2)}
+              View Cart ({cart.length})
             </span>
           </button>
         </div>
       )}
 
-      {/* Cart Drawer */}
       <CartDrawer 
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
@@ -425,7 +406,6 @@ export default function POSPage() {
         onAddCustomer={() => setShowCreateCustomerModal(true)}
       />
 
-      {/* Checkout Modal */}
       {isCheckoutOpen && (
         <CheckoutModal 
           total={cart.reduce((sum, item) => sum + item.price * item.quantity, 0)}
@@ -437,7 +417,6 @@ export default function POSPage() {
         />
       )}
 
-      {/* Barcode Scanner */}
       {isScannerOpen && (
         <BarcodeScanner
           onScan={handleScan}
@@ -445,7 +424,6 @@ export default function POSPage() {
         />
       )}
 
-      {/* Add New Customer modal */}
       {showCreateCustomerModal && businessId && (
         <CustomerForm
           customer={null}
@@ -455,7 +433,6 @@ export default function POSPage() {
         />
       )}
 
-      {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg font-semibold text-white animate-in slide-in-from-top-5 ${
           toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
