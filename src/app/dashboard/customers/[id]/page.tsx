@@ -103,6 +103,7 @@ export default function CustomerProfilePage() {
 
       setCustomer(customerData);
 
+      // 1. Fetch Sales (Purchase History)
       const { data: salesData, error: salesError } = await supabase
         .from('sales')
         .select('id, total_amount, tax_amount, payment_method, created_at, business_id, customer_id, status, void_reason')
@@ -113,10 +114,14 @@ export default function CustomerProfilePage() {
 
       if (!salesError) setSales(salesData || []);
 
+      // 2. Fetch Payments (Payment History)
+      // FIX: We filter OUT records where notes say "Credit Sale" or "Initial Credit"
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('customer_payments')
         .select('*')
         .eq('customer_id', customerId)
+        .neq('notes', 'Credit Sale')    // <--- Hides the credit initialization
+        .neq('notes', 'Initial Credit') // <--- Hides potential migration data
         .order('created_at', { ascending: false })
         .limit(20);
 
