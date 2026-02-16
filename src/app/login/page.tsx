@@ -42,7 +42,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    // !!! TEST CHANGE: Background is now RED !!!
+    <div className="min-h-screen bg-red-600 flex flex-col items-center justify-center p-4">
+      
+      {/* !!! TEST CHANGE: Big White Header !!! */}
+      <h1 className="text-4xl font-bold text-white mb-8 bg-black p-4 rounded">
+        TESTING: IS THIS THE RIGHT FILE?
+      </h1>
+
       <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl border border-gray-100">
         
         {/* Header */}
