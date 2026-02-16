@@ -2,29 +2,32 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useBusiness } from '@/contexts/BusinessContext';
+import { usePermissions } from '@/hooks/usePermissions'; // <--- Use the same hook for consistency
 import { Home, Calculator, Package, BarChart3, Settings } from 'lucide-react';
 
 const navItems = [
-  { href: '/dashboard', icon: Home, label: 'Home' },
-  { href: '/dashboard/pos', icon: Calculator, label: 'POS' },
-  { href: '/dashboard/inventory', icon: Package, label: 'Inventory' },
-  { href: '/dashboard/sales', icon: BarChart3, label: 'Reports', ownerOnly: true },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings', ownerOnly: true },
+  { href: '/dashboard', icon: Home, label: 'Home', restricted: true },
+  { href: '/dashboard/pos', icon: Calculator, label: 'POS', restricted: false },
+  { href: '/dashboard/inventory', icon: Package, label: 'Inventory', restricted: true },
+  { href: '/dashboard/sales', icon: BarChart3, label: 'Reports', restricted: true },
+  { href: '/dashboard/settings', icon: Settings, label: 'Settings', restricted: true },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { userRole } = useBusiness();
+  const { role } = usePermissions(); // <--- Get Role
 
   // Filter nav items based on user role
   const visibleNavItems = navItems.filter((item) => {
-    // If item requires owner access and user is staff, hide it
-    if (item.ownerOnly && userRole === 'staff') {
+    // If user is cashier, ONLY show POS (where restricted is false)
+    if (role === 'cashier' && item.restricted) {
       return false;
     }
     return true;
   });
+
+  // If there is only 1 item (POS), we can center it or render it normally.
+  // The map below handles it automatically.
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 block md:hidden">

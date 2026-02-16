@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBusiness } from "@/contexts/BusinessContext";
+import { usePermissions } from "@/hooks/usePermissions"; // <--- Import Permissions Hook
 import { createClient } from "@/supabase/client";
 import { useRouter } from "next/navigation";
 import { 
@@ -16,19 +17,21 @@ import {
   Store
 } from "lucide-react";
 
+// Define items with a 'restricted' flag
 const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "POS System", href: "/dashboard/pos", icon: Calculator },
-  { name: "Inventory", href: "/dashboard/inventory", icon: Package },
-  { name: "Sales History", href: "/dashboard/sales", icon: ShoppingCart },
-  { name: "Customers", href: "/dashboard/customers", icon: Users },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, restricted: true },
+  { name: "POS System", href: "/dashboard/pos", icon: Calculator, restricted: false }, // Everyone sees this
+  { name: "Inventory", href: "/dashboard/inventory", icon: Package, restricted: true },
+  { name: "Sales History", href: "/dashboard/sales", icon: ShoppingCart, restricted: true },
+  { name: "Customers", href: "/dashboard/customers", icon: Users, restricted: true },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings, restricted: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { businessName } = useBusiness();
+  const { role } = usePermissions(); // <--- Get current role
   const supabase = createClient();
 
   const handleLogout = async () => {
@@ -43,17 +46,23 @@ export function Sidebar() {
         <div className="bg-emerald-100 p-2 rounded-lg">
           <Store className="w-6 h-6 text-emerald-600" />
         </div>
-        <div>
+        <div className="min-w-0">
           <h2 className="font-bold text-gray-900 truncate w-32">
             {businessName || "My Shop"}
           </h2>
-          <p className="text-xs text-gray-500">POS System</p>
+          <p className="text-xs text-gray-500 capitalize">{role || "Staff"} View</p>
         </div>
       </div>
 
       {/* Navigation Links */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
+          // --- SECURITY CHECK ---
+          // If user is a cashier, HIDE everything except POS
+          if (role === 'cashier' && item.restricted) {
+            return null;
+          }
+
           const isActive = pathname === item.href;
           const Icon = item.icon;
           

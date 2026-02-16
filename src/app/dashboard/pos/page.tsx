@@ -9,7 +9,7 @@ import { CartDrawer } from '@/components/pos/CartDrawer';
 import { CheckoutModal } from '@/components/pos/CheckoutModal';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { CustomerForm } from '@/components/customers/CustomerForm';
-import { Loader2, ShoppingCart, Scan, Lock, User } from 'lucide-react';
+import { Loader2, ShoppingCart, Scan, Lock, User, LogOut } from 'lucide-react';
 
 // --- TYPES ---
 interface Product {
@@ -337,10 +337,28 @@ export default function POSPage() {
   // --- RENDER UNLOCKED POS ---
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
+      {/* Top Bar: User Info + Actions */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
-        <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-           <User className="w-4 h-4" />
-           <span className="font-medium">{currentStaff?.name || "Owner"}</span>
+        
+        <div className="flex items-center gap-3">
+            {/* 1. EXIT BUTTON (Only visible if NOT cashier) */}
+            {currentStaff?.role !== 'cashier' && (
+            <a 
+                href="/dashboard" 
+                className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 font-medium transition-colors"
+            >
+                <div className="p-2 hover:bg-gray-100 rounded-lg">
+                <LogOut className="w-5 h-5 rotate-180" /> {/* Arrow pointing left */}
+                </div>
+                <span className="hidden sm:inline">Exit POS</span>
+            </a>
+            )}
+
+            {/* Current User Badge */}
+            <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                <User className="w-4 h-4" />
+                <span className="font-medium">{currentStaff?.name || "Owner"}</span>
+            </div>
         </div>
 
         <div className="flex gap-2">

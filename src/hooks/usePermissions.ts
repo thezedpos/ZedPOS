@@ -15,16 +15,19 @@ export function usePermissions() {
 
   // 2. Determine Effective Tier (Trial = Pro)
   const effectiveTier = isTrial ? 'pro' : rawTier;
- // const effectiveTier = 'free';
 
   // 3. Define Limits
-  // Free = 50 items. Growth/Pro = Unlimited (Infinity)
+  // Free = 30 items. Growth/Pro = Unlimited (Infinity)
   const maxProducts = effectiveTier === 'free' ? 30 : Infinity;
 
   return {
+    // --- IDENTITY ---
+    role: userRole, // <--- THIS WAS MISSING! Adding it fixes the build error.
+
+    // --- SUBSCRIPTION ---
     tier: effectiveTier,
     isTrial,
-    maxProducts, // <--- New Rule
+    maxProducts, 
 
     // --- FEATURE GATES ---
     canUseScanner: effectiveTier === 'growth' || effectiveTier === 'pro',
