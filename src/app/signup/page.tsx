@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // UI State only (Logic uses FormData)
+  // Form State
   const [businessName, setBusinessName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -33,40 +33,48 @@ export default function SignupPage() {
     clearSession();
   }, [supabase]);
 
+  // --- BUTTON LOCK LOGIC ---
+  // The button is disabled unless all fields have text
+  const isFormValid = 
+    businessName.trim().length > 0 &&
+    fullName.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.length >= 6 &&
+    confirmPassword.length > 0;
+
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // 1. GET RAW VALUES (Bypassing State)
+    // 1. Get Values (Double Check)
     const formData = new FormData(e.currentTarget);
-    const rawBusinessName = formData.get("businessName") as string;
-    const rawFullName = formData.get("fullName") as string;
     const rawEmail = formData.get("email") as string;
     const rawPassword = formData.get("password") as string;
-    const rawConfirmPassword = formData.get("confirmPassword") as string;
+    const rawName = formData.get("fullName") as string;
+    const rawBusiness = formData.get("businessName") as string;
 
-    // 2. VALIDATION CHECK
-    if (!rawEmail || !rawPassword || !rawFullName || !rawBusinessName) {
-      setError("Please fill in all fields (Business Name, Full Name, Email, Password).");
+    // 2. JS Validation (The "Stop" Gate)
+    if (!rawEmail || !rawPassword || !rawName || !rawBusiness) {
+      setError("Please fill in all fields.");
       setLoading(false);
-      return; // STOP: Do not contact Supabase
+      return; 
     }
 
-    if (rawPassword !== rawConfirmPassword) {
-      setError("Passwords do not match. Please try again.");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       setLoading(false);
       return;
     }
 
     try {
-      // 3. ATTEMPT SIGNUP
+      // 3. Attempt Signup
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: rawEmail,
         password: rawPassword,
         options: {
           data: {
-            full_name: rawFullName,
+            full_name: rawName,
           },
         },
       });
@@ -76,17 +84,17 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // 4. CALCULATE DATES
+      // 4. Calculate Dates (30 Day Trial)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 5. CREATE BUSINESS
+      // 5. Create Business
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
           { 
-            name: rawBusinessName, 
+            name: rawBusiness, 
             subscription_tier: 'pro',       
             subscription_status: 'trial',
             trial_ends_at: isoDate,
@@ -98,16 +106,16 @@ export default function SignupPage() {
         .select()
         .single();
 
-      if (businessError) throw new Error(`Failed to create business: ${businessError.message}`);
+      if (businessError) throw new Error(`Business Error: ${businessError.message}`);
 
-      // 6. LINK USER
+      // 6. Link User
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
           {
             business_id: businessData.id,
             user_id: userId,
-            name: rawFullName,
+            name: rawName,
             role: 'owner',
             email: rawEmail,
             pin_code: '0000'
@@ -115,20 +123,22 @@ export default function SignupPage() {
         ]);
 
       if (memberError && memberError.code !== '23505') {
-         throw new Error(`Failed to set owner: ${memberError.message}`);
+         throw new Error(`Member Error: ${memberError.message}`);
       }
 
-      // 7. SUCCESS
+      // 7. Success
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error("Signup Error:", err);
-      // --- FINAL CATCH: Swap the scary error for a friendly one ---
-      if (err.message?.toLowerCase().includes("anonymous")) {
-         setError("Please enter a valid email and password to sign up.");
+      
+      // --- SAFETY NET: Catch "Anonymous" error and rewrite it ---
+      const errMsg = err.message?.toLowerCase() || "";
+      if (errMsg.includes("anonymous") || errMsg.includes("validation failed")) {
+         setError("Please enter a valid email and password to create an account.");
       } else {
-         setError(err.message || "Something went wrong during sign up.");
+         setError(err.message || "Something went wrong.");
       }
     } finally {
       setLoading(false);
@@ -166,7 +176,7 @@ export default function SignupPage() {
               <input
                 name="businessName"
                 type="text"
-                required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
+                required
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -183,7 +193,7 @@ export default function SignupPage() {
               <input
                 name="fullName"
                 type="text"
-                required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
+                required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -200,7 +210,7 @@ export default function SignupPage() {
               <input
                 name="email"
                 type="email"
-                required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -218,7 +228,7 @@ export default function SignupPage() {
                 <input
                   name="password"
                   type="password"
-                  required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
+                  required
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -236,7 +246,7 @@ export default function SignupPage() {
                 <input
                   name="confirmPassword"
                   type="password"
-                  required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
+                  required
                   minLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -256,8 +266,13 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center shadow-lg hover:shadow-emerald-100 active:scale-[0.98] mt-4"
+            // --- BUTTON LOCK: Disabled until form is valid ---
+            disabled={!isFormValid || loading}
+            className={`w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center shadow-lg mt-4 ${
+              !isFormValid || loading
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed" // Grey style
+                : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-100 active:scale-[0.98]" // Green style
+            }`}
           >
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : (
               <>
