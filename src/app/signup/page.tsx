@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form State (Used for UI feedback only)
+  // UI State only (Logic uses FormData)
   const [businessName, setBusinessName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,8 +38,7 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    // --- CRITICAL FIX: Extract values directly from the form event ---
-    // This bypasses any React state delay or syncing issues.
+    // 1. GET RAW VALUES (Bypassing State)
     const formData = new FormData(e.currentTarget);
     const rawBusinessName = formData.get("businessName") as string;
     const rawFullName = formData.get("fullName") as string;
@@ -47,23 +46,21 @@ export default function SignupPage() {
     const rawPassword = formData.get("password") as string;
     const rawConfirmPassword = formData.get("confirmPassword") as string;
 
-    console.log("Attempting Signup with:", { rawEmail, hasPassword: !!rawPassword });
-
-    // 1. Strict Validation Check
+    // 2. VALIDATION CHECK
     if (!rawEmail || !rawPassword || !rawFullName || !rawBusinessName) {
-      setError("Please fill in all fields before signing up.");
+      setError("Please fill in all fields (Business Name, Full Name, Email, Password).");
       setLoading(false);
-      return; // STOP HERE
+      return; // STOP: Do not contact Supabase
     }
 
     if (rawPassword !== rawConfirmPassword) {
       setError("Passwords do not match. Please try again.");
       setLoading(false);
-      return; // STOP HERE
+      return;
     }
 
     try {
-      // 2. Sign Up the User (Using RAW values)
+      // 3. ATTEMPT SIGNUP
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: rawEmail,
         password: rawPassword,
@@ -79,12 +76,12 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // 3. Calculate Dates (30 Days Future)
+      // 4. CALCULATE DATES
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 4. Create the Business
+      // 5. CREATE BUSINESS
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
@@ -101,18 +98,14 @@ export default function SignupPage() {
         .select()
         .single();
 
-      if (businessError) {
-        throw new Error(`Failed to create business: ${businessError.message}`);
-      }
+      if (businessError) throw new Error(`Failed to create business: ${businessError.message}`);
 
-      const businessId = businessData.id;
-
-      // 5. Link User
+      // 6. LINK USER
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
           {
-            business_id: businessId,
+            business_id: businessData.id,
             user_id: userId,
             name: rawFullName,
             role: 'owner',
@@ -121,21 +114,19 @@ export default function SignupPage() {
           }
         ]);
 
-      // Ignore "Duplicate Key" error if database trigger already ran
       if (memberError && memberError.code !== '23505') {
          throw new Error(`Failed to set owner: ${memberError.message}`);
       }
 
-      // 6. Success!
-      console.log("Signup Successful!");
+      // 7. SUCCESS
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error("Signup Error:", err);
-      // Friendly error message for "Anonymous" issue if it somehow still happens
-      if (err.message?.includes("anonymous")) {
-         setError("Please enter a valid email and password.");
+      // --- FINAL CATCH: Swap the scary error for a friendly one ---
+      if (err.message?.toLowerCase().includes("anonymous")) {
+         setError("Please enter a valid email and password to sign up.");
       } else {
          setError(err.message || "Something went wrong during sign up.");
       }
@@ -175,7 +166,7 @@ export default function SignupPage() {
               <input
                 name="businessName"
                 type="text"
-                required
+                required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -192,7 +183,7 @@ export default function SignupPage() {
               <input
                 name="fullName"
                 type="text"
-                required
+                required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -209,7 +200,7 @@ export default function SignupPage() {
               <input
                 name="email"
                 type="email"
-                required
+                required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -227,7 +218,7 @@ export default function SignupPage() {
                 <input
                   name="password"
                   type="password"
-                  required
+                  required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -245,7 +236,7 @@ export default function SignupPage() {
                 <input
                   name="confirmPassword"
                   type="password"
-                  required
+                  required // <--- BROWSER WILL BLOCK EMPTY SUBMIT
                   minLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
