@@ -9,9 +9,9 @@ import { CartDrawer } from '@/components/pos/CartDrawer';
 import { CheckoutModal } from '@/components/pos/CheckoutModal';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { CustomerForm } from '@/components/customers/CustomerForm';
-import { Loader2, ShoppingCart, Scan, Lock } from 'lucide-react';
+import { Loader2, ShoppingCart, Scan, Lock, User, LogOut, CheckCircle } from 'lucide-react';
 
-// Define strict types
+// --- TYPES ---
 interface Product {
   id: string;
   name: string;
@@ -32,11 +32,21 @@ interface Customer {
   balance?: number;
 }
 
+interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+  pin_code: string;
+}
+
 export default function POSPage() {
   const { businessId } = useBusiness();
   const { canUseScanner } = usePermissions();
+  const supabase = createClient();
+
+  // --- STATE ---
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]); // Initialize as empty array
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -45,7 +55,82 @@ export default function POSPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
-  const supabase = createClient();
+
+  // --- LOCK SCREEN STATE ---
+  const [isLocked, setIsLocked] = useState(true); // Default to LOCKED
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
+  const [pinInput, setPinInput] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [pinError, setPinError] = useState(false);
+
+  // 1. Fetch Data (Products, Customers, AND Staff)
+  useEffect(() => {
+    async function loadData() {
+      if (!businessId) return;
+      
+      try {
+        // Products
+        const { data: prodData } = await supabase
+          .from('products')
+          .select('id, name, price, stock, barcode, tax_type')
+          .eq('business_id', businessId)
+          .order('name');
+        if (prodData) setProducts(prodData);
+
+        // Customers
+        const { data: custData } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('business_id', businessId)
+          .order('full_name');
+        if (custData) setCustomers(custData as Customer[]);
+
+        // Staff (For Lock Screen)
+        const { data: staffData } = await supabase
+          .from('business_members')
+          .select('id, name, role, pin_code')
+          .eq('business_id', businessId)
+          .order('name');
+        if (staffData) setStaffMembers(staffData);
+
+      } catch (err) {
+        console.error("Load Error:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [businessId, supabase]);
+
+  // --- LOCK SCREEN LOGIC ---
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    const staff = staffMembers.find(s => s.id === selectedStaffId);
+    
+    if (staff && staff.pin_code === pinInput) {
+      setCurrentStaff(staff);
+      setIsLocked(false);
+      setPinInput("");
+      setPinError(false);
+      setToast({ message: `Welcome, ${staff.name}!`, type: 'success' });
+      setTimeout(() => setToast(null), 2000);
+    } else {
+      setPinError(true);
+      setPinInput("");
+      setToast({ message: 'Incorrect PIN', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+    }
+  };
+
+  const handleLock = () => {
+    setIsLocked(true);
+    setCurrentStaff(null);
+    setSelectedStaffId(null);
+    setPinInput("");
+  };
+
+  // --- POS LOGIC ---
 
   const handleCustomerCreated = (newCustomer: { id: string; full_name: string; phone_number: string | null } | undefined) => {
     setShowCreateCustomerModal(false);
@@ -58,108 +143,32 @@ export default function POSPage() {
     }
   };
 
-  // 1. Fetch Products
-  useEffect(() => {
-    async function loadProducts() {
-      if (!businessId) return;
-      
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, price, stock, barcode, tax_type')
-        .eq('business_id', businessId)
-        .order('name');
-
-      if (data) setProducts(data);
-      setLoading(false);
-    }
-    loadProducts();
-  }, [businessId]);
-
-  // 1.5. Fetch Customers
-  useEffect(() => {
-    async function loadCustomers() {
-      if (!businessId) return;
-
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('business_id', businessId)
-        .order('full_name', { ascending: true });
-
-      if (!error && data) setCustomers(data as Customer[]);
-    }
-    loadCustomers();
-  }, [businessId, supabase]);
-
-  // 2. Add to Cart Logic (Fixed)
   const handleAddToCart = (product: Product) => {
-    console.log("Adding product:", product.name); // Debug log
-
     setCart(prevCart => {
       const existing = prevCart.find(item => item.id === product.id);
-      
       if (existing) {
-        // Item exists? Increment quantity
         return prevCart.map(item => 
-          item.id === product.id 
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       } else {
-        // New item? Add to array with quantity 1
         return [...prevCart, { ...product, quantity: 1 }];
       }
     });
-
-    setIsCartOpen(true); // Auto-open cart on add (optional, good for mobile)
+    setIsCartOpen(true);
   };
 
-  // 2.5. Handle Barcode Scan
   const handleScan = (code: string) => {
-    // Look for product with matching barcode
     const product = products.find(p => p.barcode && p.barcode.trim().toLowerCase() === code.trim().toLowerCase());
-    
     if (product) {
-      // Product found - add to cart
       handleAddToCart(product);
-      
-      // Show success toast
       setToast({ message: `Added ${product.name}`, type: 'success' });
-      
-      // Play success sound (optional - using Web Audio API)
-      try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.1);
-      } catch (err) {
-        // Silently fail if audio is not supported
-        console.log('Audio not supported');
-      }
-      
-      // Close scanner after successful scan
       setIsScannerOpen(false);
     } else {
-      // Product not found
       setToast({ message: 'Product not found', type: 'error' });
     }
-    
-    // Auto-hide toast after 3 seconds
     setTimeout(() => setToast(null), 3000);
   };
 
-  // 3. Update Quantity Logic
   const handleUpdateQuantity = (id: string, delta: number) => {
     setCart(prevCart => {
       return prevCart.map(item => {
@@ -167,12 +176,9 @@ export default function POSPage() {
           return { ...item, quantity: Math.max(0, item.quantity + delta) };
         }
         return item;
-      }).filter(item => item.quantity > 0); // Remove if 0
+      }).filter(item => item.quantity > 0);
     });
   };
-
-  // 4. Checkout Logic
-  // Inside src/app/dashboard/pos/page.tsx
 
   const handleCheckout = async (paymentMethod: string) => {
     if (!businessId) {
@@ -180,30 +186,25 @@ export default function POSPage() {
       return;
     }
 
-    // Calculate total and VAT based on tax_type
+    // Tax Calc
     let total = 0;
     let taxAmount = 0;
-
     cart.forEach((item) => {
       const itemTotal = item.price * item.quantity;
       total += itemTotal;
-
-      // Calculate VAT only for Standard (16%) items
       if (item.tax_type === 'standard') {
-        // VAT = Price - (Price / 1.16) for tax-inclusive pricing
         const itemVAT = itemTotal - (itemTotal / 1.16);
         taxAmount += itemVAT;
       }
-      // Zero-rated and Exempt items have 0 VAT
     });
 
-    // Credit requires a selected customer
     if (paymentMethod === 'credit' && !selectedCustomer) {
       setToast({ message: 'Please select a customer for credit sales.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
+    // IMPORTANT: Record WHO made the sale (staff_id)
     const payload = {
       business_id: businessId,
       total_amount: total,
@@ -214,69 +215,174 @@ export default function POSPage() {
         product_id: item.id,
         quantity: item.quantity,
         unit_price: item.price
-      }))
+      })),
+      staff_id: currentStaff?.id || null, // <--- Add this column to sales table later if you want strict tracking
+      staff_name: currentStaff?.name || "Unknown" // Just for metadata if needed
     };
 
     try {
-      const { data, error } = await supabase.rpc('process_sale_transaction', {
+      const { error } = await supabase.rpc('process_sale_transaction', {
         p_body: payload
       });
 
-      if (error) {
-        console.error("Supabase Error:", error); // Log the full object
-        throw new Error(error.message || "Transaction failed");
-      }
+      if (error) throw new Error(error.message || "Transaction failed");
 
-      // If credit sale, increment customer balance
       if (paymentMethod === 'credit' && selectedCustomer) {
         const newBalance = (selectedCustomer.balance ?? 0) + total;
-        await supabase
-          .from('customers')
-          .update({ balance: newBalance })
-          .eq('id', selectedCustomer.id);
+        await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id);
       }
 
-      // Success!
       alert('Sale Completed Successfully!');
       setCart([]);
       setSelectedCustomer(null);
       setIsCheckoutOpen(false);
       setIsCartOpen(false);
+
+      // OPTIONAL: Auto-Lock after sale?
+      // Uncomment next line if you want strict security
+      // handleLock(); 
       
     } catch (err: any) {
       console.error("Checkout Exception:", err);
-      // Show the actual error message
       alert(`Checkout Failed: ${err.message || JSON.stringify(err)}`);
     }
   };
 
+  // --- RENDER LOADING ---
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
+  // --- RENDER LOCK SCREEN ---
+  if (isLocked) {
+    return (
+      <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-emerald-600 p-6 text-center">
+            <h2 className="text-2xl font-bold text-white">POS Locked</h2>
+            <p className="text-emerald-100">Select your name to unlock</p>
+          </div>
+          
+          <div className="p-6">
+            {!selectedStaffId ? (
+              <div className="grid grid-cols-2 gap-4">
+                {staffMembers.map(staff => (
+                  <button
+                    key={staff.id}
+                    onClick={() => setSelectedStaffId(staff.id)}
+                    className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-gray-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all aspect-square"
+                  >
+                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-2 text-xl font-bold text-gray-600">
+                      {staff.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-semibold text-gray-800 text-center">{staff.name}</span>
+                    <span className="text-xs text-gray-500 capitalize">{staff.role}</span>
+                  </button>
+                ))}
+                {staffMembers.length === 0 && (
+                  <p className="col-span-2 text-center text-gray-500">No staff members found.</p>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleUnlock} className="space-y-6">
+                <div className="text-center">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setSelectedStaffId(null);
+                      setPinInput("");
+                      setPinError(false);
+                    }}
+                    className="text-sm text-gray-500 hover:text-emerald-600 mb-4 flex items-center justify-center gap-1"
+                  >
+                    ← Back to User List
+                  </button>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Hello, {staffMembers.find(s => s.id === selectedStaffId)?.name}
+                  </h3>
+                  <p className="text-gray-500 text-sm">Enter your PIN to start selling</p>
+                </div>
+
+                <div className="flex justify-center">
+                  <input
+                    type="password"
+                    maxLength={4}
+                    autoFocus
+                    value={pinInput}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setPinInput(val);
+                      if (pinError) setPinError(false);
+                    }}
+                    className={`text-center text-3xl tracking-[1em] w-48 py-2 border-b-2 outline-none font-mono ${
+                      pinError ? 'border-red-500 text-red-600' : 'border-gray-300 focus:border-emerald-500'
+                    }`}
+                    placeholder="••••"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={pinInput.length < 4}
+                  className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  Unlock POS
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+        
+        {/* Navigation Link for Owner fallback */}
+        <div className="mt-8 text-center text-gray-500 text-sm">
+          <p>Admin Dashboard is accessible via main menu.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER UNLOCKED POS ---
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
-      {/* Scan Item Button - Above Product Grid */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-end">
-        <button
-          onClick={() => {
-            if (!canUseScanner) {
-              setToast({ message: 'Upgrade to Growth to use the Barcode Scanner.', type: 'error' });
-              setTimeout(() => setToast(null), 3000);
-              return;
-            }
-            setIsScannerOpen(true);
-          }}
-          aria-disabled={!canUseScanner}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors min-h-[44px] ${
-            canUseScanner
-              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          <Scan className="w-5 h-5" />
-          <span>Scan Item</span>
-          {!canUseScanner && <Lock className="w-4 h-4" />}
-        </button>
+      {/* Top Bar: Scanner + Lock Button */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
+        {/* Current User Info */}
+        <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+           <User className="w-4 h-4" />
+           <span className="font-medium">{currentStaff?.name || "Owner"}</span>
+        </div>
+
+        <div className="flex gap-2">
+          {/* Lock Button */}
+          <button
+            onClick={handleLock}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors"
+          >
+            <Lock className="w-4 h-4" />
+            <span className="hidden sm:inline">Lock Screen</span>
+          </button>
+
+          {/* Scanner Button */}
+          <button
+            onClick={() => {
+              if (!canUseScanner) {
+                setToast({ message: 'Upgrade to Growth to use the Barcode Scanner.', type: 'error' });
+                setTimeout(() => setToast(null), 3000);
+                return;
+              }
+              setIsScannerOpen(true);
+            }}
+            aria-disabled={!canUseScanner}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors min-h-[44px] ${
+              canUseScanner
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <Scan className="w-5 h-5" />
+            <span className="hidden sm:inline">Scan</span>
+          </button>
+        </div>
       </div>
+
       {!canUseScanner && (
         <div className="bg-white px-4 pb-2 flex justify-end">
           <p className="text-xs text-gray-500">Scanner locked. Upgrade to enable.</p>
@@ -291,7 +397,7 @@ export default function POSPage() {
         />
       </div>
 
-      {/* Floating Cart Button (Visible when cart closed) - Mobile FAB */}
+      {/* Floating Cart Button */}
       {!isCartOpen && cart.length > 0 && (
         <div className="fixed bottom-24 right-4 z-40 md:hidden">
           <button 
@@ -300,7 +406,7 @@ export default function POSPage() {
           >
             <ShoppingCart className="w-5 h-5" />
             <span className="font-bold text-sm">
-              View Cart ({cart.length} {cart.length === 1 ? 'item' : 'items'}) - K{cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2)}
+              View Cart ({cart.length}) - K{cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2)}
             </span>
           </button>
         </div>
@@ -339,7 +445,7 @@ export default function POSPage() {
         />
       )}
 
-      {/* Add New Customer modal (from POS) */}
+      {/* Add New Customer modal */}
       {showCreateCustomerModal && businessId && (
         <CustomerForm
           customer={null}
@@ -351,7 +457,7 @@ export default function POSPage() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg font-semibold text-white animate-in slide-in-from-top-5 ${
+        <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg font-semibold text-white animate-in slide-in-from-top-5 ${
           toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
         }`}>
           {toast.message}
