@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -15,7 +15,13 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Clean up session on load
+  // --- REFS: Direct access to the input elements ---
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const businessRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const clearSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -24,40 +30,36 @@ export default function SignupPage() {
     clearSession();
   }, [supabase]);
 
-  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // --- 1. GET RAW FORM DATA (The most reliable method) ---
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email")?.toString().trim();
-    const password = formData.get("password")?.toString().trim();
-    const fullName = formData.get("fullName")?.toString().trim();
-    const businessName = formData.get("businessName")?.toString().trim();
-    const confirmPassword = formData.get("confirmPassword")?.toString().trim();
+    // --- 1. READ VALUES DIRECTLY FROM THE DOM ---
+    // This bypasses React State and Event Bubbling
+    const email = emailRef.current?.value.trim() || "";
+    const password = passwordRef.current?.value || "";
+    const confirm = confirmRef.current?.value || "";
+    const fullName = nameRef.current?.value.trim() || "";
+    const businessName = businessRef.current?.value.trim() || "";
 
-    // --- DEBUG LOGGING (Open F12 Console to see this) ---
-    console.log("Attempting Signup with:", { email, hasPassword: !!password, fullName, businessName });
+    console.log("Direct Read:", { email, hasPass: !!password });
 
-    // --- 2. THE HARD STOP ---
-    // If any field is missing, we KILL the process here.
-    // Supabase will NEVER be called if this block runs.
+    // --- 2. VALIDATION ---
     if (!email || !password || !fullName || !businessName) {
-      console.error("Validation Failed: Missing Fields");
       setError("Please fill in all fields.");
       setLoading(false);
       return; 
     }
 
-    if (password !== confirmPassword) {
+    if (password !== confirm) {
       setError("Passwords do not match.");
       setLoading(false);
       return;
     }
 
     try {
-      // 3. ATTEMPT SIGNUP
+      // 3. SIGN UP
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
         password: password,
@@ -73,12 +75,11 @@ export default function SignupPage() {
 
       const userId = authData.user.id;
 
-      // 4. CALCULATE DATES
+      // 4. DATES & BUSINESS
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
 
-      // 5. CREATE BUSINESS
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert([
@@ -97,7 +98,7 @@ export default function SignupPage() {
 
       if (businessError) throw new Error(`Business Error: ${businessError.message}`);
 
-      // 6. LINK USER
+      // 5. LINK MEMBER
       const { error: memberError } = await supabase
         .from('business_members')
         .insert([
@@ -115,16 +116,15 @@ export default function SignupPage() {
          throw new Error(`Member Error: ${memberError.message}`);
       }
 
-      // 7. SUCCESS
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error("Signup Error:", err);
       
-      // Safety Net for the "Anonymous" error
-      if (err.message?.toLowerCase().includes("anonymous")) {
-         setError("Critical Error: Email was empty. Please type it again.");
+      // Specific handling for the "Anonymous" error
+      if (err.message?.includes("anonymous") || err.code === "anonymous_provider_disabled") {
+         setError("Browser Error: Your browser is blocking the email field. Please try Incognito mode or disable extensions.");
       } else {
          setError(err.message || "Something went wrong.");
       }
@@ -154,73 +154,71 @@ export default function SignupPage() {
 
         <form onSubmit={handleSignup} className="space-y-4">
           
+          {/* Business Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
             <div className="relative">
               <Building2 className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="businessName"
+                ref={businessRef}  // <--- DIRECT ACCESS
                 type="text"
-                required // HTML5 Validation
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                 placeholder="e.g. Lusaka Electronics"
               />
             </div>
           </div>
 
+          {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Your Full Name</label>
             <div className="relative">
               <User className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="fullName"
+                ref={nameRef}  // <--- DIRECT ACCESS
                 type="text"
-                required
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                 placeholder="e.g. John Banda"
               />
             </div>
           </div>
 
+          {/* Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <div className="relative">
               <Mail className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
               <input
-                name="email"
+                ref={emailRef}  // <--- DIRECT ACCESS
                 type="email"
-                required
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                 placeholder="you@example.com"
               />
             </div>
           </div>
 
+          {/* Password Group */}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <div className="relative">
                 <Lock className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
                 <input
-                  name="password"
+                  ref={passwordRef}  // <--- DIRECT ACCESS
                   type="password"
-                  required
-                  minLength={6}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
+            {/* Confirm Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
               <div className="relative">
                 <CheckCircle className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
                 <input
-                  name="confirmPassword"
+                  ref={confirmRef}  // <--- DIRECT ACCESS
                   type="password"
-                  required
-                  minLength={6}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                   placeholder="Repeat password"
                 />
@@ -249,6 +247,7 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+
       </div>
     </div>
   );
