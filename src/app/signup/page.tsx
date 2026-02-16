@@ -36,9 +36,9 @@ export default function SignupPage() {
     const businessName = formData.get("businessName")?.toString().trim();
     const confirmPassword = formData.get("confirmPassword")?.toString().trim();
 
-    // Validation: Stop empty submissions
+    // Validation
     if (!email || !password || !fullName || !businessName) {
-      setError("Please fill in all fields (Name, Business, Email, Password) to sign up.");
+      setError("Please fill in all fields.");
       setLoading(false);
       return; 
     }
@@ -58,11 +58,17 @@ export default function SignupPage() {
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error("No user created");
+      
+      // CRITICAL CHECK: If Supabase still wants email verification, stop here.
+      if (!authData.user && !authData.session) {
+          throw new Error("Please disable 'Confirm Email' in Supabase Dashboard -> Auth -> Providers -> Email.");
+      }
 
+      if (!authData.user) throw new Error("No user created");
+      
       const userId = authData.user.id;
 
-      // 2. Create Business & Link User
+      // 2. Create Business
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
       const isoDate = trialEndDate.toISOString();
@@ -83,6 +89,7 @@ export default function SignupPage() {
 
       if (businessError) throw new Error(businessError.message);
 
+      // 3. Link User
       await supabase.from('business_members').insert([{
         business_id: businessData.id,
         user_id: userId,
@@ -97,6 +104,7 @@ export default function SignupPage() {
 
     } catch (err: any) {
       console.error("Signup Error:", err);
+      // Friendly error handling
       if (err.message?.includes("anonymous")) {
          setError("Please enter a valid email and password.");
       } else {
@@ -119,18 +127,21 @@ export default function SignupPage() {
           <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
         </div>
 
-        {/* --- NEW INSTRUCTION MESSAGE --- */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800 flex items-start gap-3">
+        {/* --- INSTRUCTION MESSAGE (RED & VISIBLE) --- */}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-sm text-red-800 flex items-start gap-3">
           <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p><strong>First time here?</strong> Enter your email and password below to create a new account.</p>
-            <p><strong>Already have an account?</strong> <Link href="/login" className="underline font-semibold hover:text-blue-600">Click here to Log In</Link>.</p>
+             <p className="font-bold">INSTRUCTIONS:</p>
+             <ul className="list-disc pl-4 space-y-1">
+               <li><strong>New User?</strong> Fill in the form below to create your account.</li>
+               <li><strong>Existing User?</strong> <Link href="/login" className="underline font-bold hover:text-red-900">Click here to Log In</Link>.</li>
+             </ul>
           </div>
         </div>
 
         {/* Error Banner */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg flex items-start text-sm animate-in fade-in">
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg flex items-start text-sm animate-in fade-in">
             <AlertCircle className="w-5 h-5 mr-2 shrink-0" />
             <span>{error}</span>
           </div>
