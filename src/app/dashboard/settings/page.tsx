@@ -8,6 +8,7 @@ import {
   MapPin 
 } from "lucide-react";
 import Link from "next/link";
+import { SecuritySettings } from "@/components/settings/SecuritySettings";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -97,6 +98,8 @@ export default function SettingsPage() {
         </Link>
 
       </div>
+
+      <SecuritySettings />
 
       {/* --- SIGNOUT SECTION --- */}
       <div className="mt-8 pt-8 border-t border-gray-200">
