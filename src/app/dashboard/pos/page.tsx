@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/supabase/client';
 import { useBusiness } from '@/contexts/BusinessContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -9,7 +10,7 @@ import { CartDrawer } from '@/components/pos/CartDrawer';
 import { CheckoutModal } from '@/components/pos/CheckoutModal';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { CustomerForm } from '@/components/customers/CustomerForm';
-import { Loader2, ShoppingCart, Scan, Lock, User, LogOut } from 'lucide-react';
+import { Loader2, ShoppingCart, Scan, User, Users, LogOut } from 'lucide-react';
 
 // --- TYPES ---
 interface Product {
@@ -36,10 +37,10 @@ interface StaffMember {
   id: string;
   name: string;
   role: string;
-  pin_code: string;
 }
 
 export default function POSPage() {
+  const router = useRouter();
   const { businessId } = useBusiness();
   const { canUseScanner } = usePermissions();
   const supabase = createClient();
@@ -55,20 +56,27 @@ export default function POSPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
-
-  // --- LOCK SCREEN STATE ---
-  const [isLocked, setIsLocked] = useState(true);
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  
+  // Current Staff State (Loaded from LocalStorage)
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
-  const [pinInput, setPinInput] = useState("");
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  const [pinError, setPinError] = useState(false);
 
-  // 1. Fetch Data
+  // 1. Fetch Data & Identify User
   useEffect(() => {
+    // A. Identify User from LocalStorage (set by Gatekeeper)
+    const storedName = localStorage.getItem('active_staff_name');
+    const storedRole = localStorage.getItem('active_staff_role');
+    const storedId = localStorage.getItem('active_staff_id');
+
+    if (storedName && storedRole && storedId) {
+        setCurrentStaff({ id: storedId, name: storedName, role: storedRole });
+    } else {
+        // If no user found, force them back to Gatekeeper
+        router.push('/dashboard/gatekeeper');
+        return;
+    }
+
     async function loadData() {
       if (!businessId) return;
-      
       try {
         // Products
         const { data: prodData } = await supabase
@@ -86,18 +94,6 @@ export default function POSPage() {
           .order('full_name');
         if (custData) setCustomers(custData as Customer[]);
 
-        // Staff (Safe Fetch)
-        const { data: staffData } = await supabase
-          .from('business_members')
-          .select('id, name, role, pin_code')
-          .eq('business_id', businessId)
-          .order('name');
-        
-        // SAFEGUARD: Ensure data exists before setting state
-        if (staffData) {
-            setStaffMembers(staffData as StaffMember[]);
-        }
-
       } catch (err) {
         console.error("Load Error:", err);
       } finally {
@@ -105,39 +101,20 @@ export default function POSPage() {
       }
     }
     loadData();
-  }, [businessId, supabase]);
+  }, [businessId, supabase, router]);
 
-  // --- LOCK SCREEN LOGIC ---
-  const handleUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    const staff = staffMembers.find(s => s.id === selectedStaffId);
+  // --- ACTIONS ---
+
+  const handleSwitchUser = () => {
+    // Clear the current session
+    localStorage.removeItem('active_staff_name');
+    localStorage.removeItem('active_staff_role');
+    localStorage.removeItem('active_staff_id');
+    document.cookie = 'active_staff_role=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     
-    // Check if PIN matches (Handle null pins safely)
-    const storedPin = staff?.pin_code || "";
-    
-    if (staff && storedPin === pinInput) {
-      setCurrentStaff(staff);
-      setIsLocked(false);
-      setPinInput("");
-      setPinError(false);
-      setToast({ message: `Welcome, ${staff.name || 'User'}!`, type: 'success' });
-      setTimeout(() => setToast(null), 2000);
-    } else {
-      setPinError(true);
-      setPinInput("");
-      setToast({ message: 'Incorrect PIN', type: 'error' });
-      setTimeout(() => setToast(null), 2000);
-    }
+    // Redirect to Gatekeeper
+    router.push('/dashboard/gatekeeper');
   };
-
-  const handleLock = () => {
-    setIsLocked(true);
-    setCurrentStaff(null);
-    setSelectedStaffId(null);
-    setPinInput("");
-  };
-
-  // --- POS ACTIONS ---
 
   const handleCustomerCreated = (newCustomer: { id: string; full_name: string; phone_number: string | null } | undefined) => {
     setShowCreateCustomerModal(false);
@@ -248,127 +225,42 @@ export default function POSPage() {
 
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
-  // --- RENDER LOCK SCREEN ---
-  if (isLocked) {
-    return (
-      <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="bg-emerald-600 p-6 text-center">
-            <h2 className="text-2xl font-bold text-white">POS Locked</h2>
-            <p className="text-emerald-100">Select your name to unlock</p>
-          </div>
-          
-          <div className="p-6">
-            {!selectedStaffId ? (
-              <div className="grid grid-cols-2 gap-4">
-                {staffMembers.map(staff => (
-                  <button
-                    key={staff.id}
-                    onClick={() => setSelectedStaffId(staff.id)}
-                    className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-gray-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all aspect-square"
-                  >
-                    {/* CRASH FIX: Safe access to name */}
-                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-2 text-xl font-bold text-gray-600">
-                      {(staff.name || "U").charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-semibold text-gray-800 text-center text-sm">
-                      {staff.name || "Unknown"}
-                    </span>
-                    <span className="text-xs text-gray-500 capitalize">{staff.role}</span>
-                  </button>
-                ))}
-                {staffMembers.length === 0 && (
-                  <p className="col-span-2 text-center text-gray-500">No staff members found.</p>
-                )}
-              </div>
-            ) : (
-              <form onSubmit={handleUnlock} className="space-y-6">
-                <div className="text-center">
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setSelectedStaffId(null);
-                      setPinInput("");
-                      setPinError(false);
-                    }}
-                    className="text-sm text-gray-500 hover:text-emerald-600 mb-4 flex items-center justify-center gap-1"
-                  >
-                    ← Back to User List
-                  </button>
-                  <h3 className="text-lg font-bold text-gray-900">
-                    Hello, {staffMembers.find(s => s.id === selectedStaffId)?.name || "User"}
-                  </h3>
-                  <p className="text-gray-500 text-sm">Enter your PIN to start selling</p>
-                </div>
-
-                <div className="flex justify-center">
-                  <input
-                    type="password"
-                    maxLength={4}
-                    autoFocus
-                    value={pinInput}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setPinInput(val);
-                      if (pinError) setPinError(false);
-                    }}
-                    className={`text-center text-3xl tracking-[1em] w-48 py-2 border-b-2 outline-none font-mono ${
-                      pinError ? 'border-red-500 text-red-600' : 'border-gray-300 focus:border-emerald-500'
-                    }`}
-                    placeholder="••••"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={pinInput.length < 4}
-                  className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                >
-                  Unlock POS
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- RENDER UNLOCKED POS ---
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Top Bar: User Info + Actions */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
         
         <div className="flex items-center gap-3">
-            {/* 1. EXIT BUTTON (Only visible if NOT cashier) */}
+            {/* 1. EXIT BUTTON (Owner Only) */}
             {currentStaff?.role !== 'cashier' && (
-            <a 
-                href="/dashboard" 
-                className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 font-medium transition-colors"
-            >
-                <div className="p-2 hover:bg-gray-100 rounded-lg">
-                <LogOut className="w-5 h-5 rotate-180" /> {/* Arrow pointing left */}
-                </div>
-                <span className="hidden sm:inline">Exit POS</span>
-            </a>
+              <a 
+                  href="/dashboard" 
+                  className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 font-medium transition-colors"
+                  title="Go to Dashboard"
+              >
+                  <div className="p-2 hover:bg-gray-100 rounded-lg">
+                    <LogOut className="w-5 h-5 rotate-180" />
+                  </div>
+              </a>
             )}
 
             {/* Current User Badge */}
             <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
                 <User className="w-4 h-4" />
-                <span className="font-medium">{currentStaff?.name || "Owner"}</span>
+                <span className="font-medium">{currentStaff?.name || "User"}</span>
             </div>
         </div>
 
         <div className="flex gap-2">
+          {/* 2. SWITCH USER BUTTON (Replaces Lock Screen) */}
           <button
-            onClick={handleLock}
+            onClick={handleSwitchUser}
             className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors"
           >
-            <Lock className="w-4 h-4" />
-            <span className="hidden sm:inline">Lock Screen</span>
+            <Users className="w-4 h-4" />
+            <span className="hidden sm:inline">Switch User</span>
           </button>
+
           <button
             onClick={() => {
               if (!canUseScanner) {
