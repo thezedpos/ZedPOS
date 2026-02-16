@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/supabase/client';
 import { useBusiness } from '@/contexts/BusinessContext';
@@ -8,9 +8,9 @@ import { Loader2 } from 'lucide-react';
 
 interface StaffMember {
   id: string;
-  name: string | null;
+  name: string;
   role: string;
-  pin_code: string | null;
+  pin_code: string;
 }
 
 export default function GatekeeperPage() {
@@ -20,8 +20,19 @@ export default function GatekeeperPage() {
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('Loading profiles...');
   const supabase = createClient();
+
+  const handleAutoLogin = useCallback(
+    (member: StaffMember) => {
+      document.cookie = `active_staff_role=${member.role}; path=/;`;
+      localStorage.setItem('active_staff_role', member.role);
+      localStorage.setItem('active_staff_name', member.name);
+      localStorage.setItem('active_staff_id', member.id);
+      router.push('/dashboard');
+    },
+    [router]
+  );
 
   useEffect(() => {
     const init = async () => {
@@ -38,32 +49,36 @@ export default function GatekeeperPage() {
           .select('business_id')
           .eq('user_id', user.id)
           .maybeSingle();
-        if (memberData) bId = memberData.business_id;
+
+        if (!memberData) {
+          router.push('/signup');
+          return;
+        }
+        bId = memberData.business_id;
       }
 
       if (!bId) {
-        setLoading(false);
+        router.push('/signup');
         return;
       }
 
-      const { data: members } = await supabase
+      const { data: members, error: fetchError } = await supabase
         .from('business_members')
-        .select('id, name, role, pin_code, user_id')
+        .select('id, name, role, pin_code')
         .eq('business_id', bId);
 
-      let list = (members || []) as (StaffMember & { user_id?: string })[];
-      const ownerRow = list.find((m) => m.role === 'owner' && m.user_id === user.id);
-
-      if (ownerRow && !ownerRow.pin_code) {
-        await supabase
-          .from('business_members')
-          .update({ pin_code: '0000' })
-          .eq('id', ownerRow.id);
-        ownerRow.pin_code = '0000';
+      if (fetchError) {
+        console.error('Member fetch error:', fetchError);
+        setStatusMessage('Error loading profiles. Please try again.');
+        return;
       }
 
-      if (!list.some((m) => m.role === 'owner')) {
-        const { data: newOwner } = await supabase
+      const ownerRecord = members?.find((m) => m.role === 'owner');
+
+      if (!members || members.length === 0 || !ownerRecord) {
+        setStatusMessage('Initializing your shop profile...');
+
+        const { data: newOwner, error: createError } = await supabase
           .from('business_members')
           .insert({
             business_id: bId,
@@ -75,47 +90,52 @@ export default function GatekeeperPage() {
           })
           .select('id, name, role, pin_code')
           .single();
-        if (newOwner) list = [...list, newOwner as StaffMember];
+
+        if (newOwner && !createError) {
+          handleAutoLogin({
+            id: newOwner.id,
+            name: newOwner.name ?? 'Owner',
+            role: newOwner.role,
+            pin_code: newOwner.pin_code ?? '0000',
+          });
+        } else {
+          console.error('Failed to create owner:', createError);
+          setStatusMessage('Error initializing profile. Please contact support.');
+        }
+        return;
       }
 
-      setStaffMembers(list.map((m) => ({
-        id: m.id,
-        name: m.name ?? (m.role === 'owner' ? 'Owner' : 'Staff'),
-        role: m.role,
-        pin_code: m.pin_code ?? '0000',
-      })));
-      setLoading(false);
+      setStaffMembers(
+        members.map((m) => ({
+          id: m.id,
+          name: m.name ?? (m.role === 'owner' ? 'Owner' : 'Staff'),
+          role: m.role,
+          pin_code: m.pin_code ?? '0000',
+        }))
+      );
+      setStatusMessage('');
     };
 
     init();
-  }, [businessId, router, supabase]);
+  }, [businessId, router, supabase, handleAutoLogin]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStaff) return;
 
-    const expectedPin = selectedStaff.pin_code ?? '0000';
-    if (pin === expectedPin) {
-      document.cookie = `active_staff_role=${selectedStaff.role}; path=/;`;
-      localStorage.setItem('active_staff_role', selectedStaff.role);
-      localStorage.setItem('active_staff_name', selectedStaff.name ?? 'User');
-      localStorage.setItem('active_staff_id', selectedStaff.id);
-
-      if (selectedStaff.role === 'owner' || selectedStaff.role === 'manager') {
-        router.push('/dashboard');
-      } else {
-        router.push('/dashboard/pos');
-      }
+    if (pin === (selectedStaff.pin_code ?? '0000')) {
+      handleAutoLogin(selectedStaff);
     } else {
       setError('Incorrect PIN');
       setPin('');
     }
   };
 
-  if (loading) {
+  if (statusMessage) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
         <Loader2 className="animate-spin h-8 w-8 text-emerald-600" />
+        <p className="text-gray-600 font-medium">{statusMessage}</p>
       </div>
     );
   }
