@@ -1,37 +1,52 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { usePermissions } from '@/hooks/usePermissions'; // <--- Use the same hook for consistency
-import { Home, Calculator, Package, BarChart3, Settings } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation'; // Added useRouter
+import { createClient } from '@/supabase/client'; // Added Supabase client
+import { usePermissions } from '@/hooks/usePermissions';
+import { Home, Calculator, Package, BarChart3, Settings, LogOut } from 'lucide-react'; // Added LogOut
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Home', restricted: true },
   { href: '/dashboard/pos', icon: Calculator, label: 'POS', restricted: false },
-  { href: '/dashboard/inventory', icon: Package, label: 'Inventory', restricted: true },
+  { href: '/dashboard/inventory', icon: Package, label: 'Inv', restricted: true }, // Shortened label
   { href: '/dashboard/sales', icon: BarChart3, label: 'Reports', restricted: true },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings', restricted: true },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { role } = usePermissions(); // <--- Get Role
+  const router = useRouter();
+  const { role } = usePermissions();
+  const supabase = createClient();
 
-  // Filter nav items based on user role
+  // 1. Logic to Handle Sign Out (The Fix)
+  const handleSignOut = async () => {
+    // Clear Gatekeeper Data
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem('active_staff_role');
+        localStorage.removeItem('active_staff_name');
+        localStorage.removeItem('active_staff_id');
+    }
+    
+    // Sign out and Redirect to Home (/)
+    await supabase.auth.signOut();
+    router.push('/'); 
+  };
+
+  // 2. Filter nav items based on user role
   const visibleNavItems = navItems.filter((item) => {
-    // If user is cashier, ONLY show POS (where restricted is false)
     if (role === 'cashier' && item.restricted) {
       return false;
     }
     return true;
   });
 
-  // If there is only 1 item (POS), we can center it or render it normally.
-  // The map below handles it automatically.
-
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 block md:hidden">
       <div className="flex items-center justify-around h-16 px-2 pb-safe">
+        
+        {/* Render Normal Nav Items */}
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || 
@@ -49,7 +64,7 @@ export function MobileNav() {
                 }`}
               />
               <span
-                className={`text-xs ${
+                className={`text-[10px] sm:text-xs ${
                   isActive ? 'text-emerald-600 font-medium' : 'text-gray-400'
                 }`}
               >
@@ -58,6 +73,18 @@ export function MobileNav() {
             </Link>
           );
         })}
+
+        {/* ALWAYS Render Sign Out Button (Last Item) */}
+        <button
+          onClick={handleSignOut}
+          className="flex flex-col items-center justify-center flex-1 h-full min-w-0 px-1 transition-colors touch-manipulation group"
+        >
+          <LogOut className="w-6 h-6 mb-1 text-gray-400 group-hover:text-red-600 transition-colors" />
+          <span className="text-[10px] sm:text-xs text-gray-400 group-hover:text-red-600 transition-colors">
+            Exit
+          </span>
+        </button>
+
       </div>
     </nav>
   );

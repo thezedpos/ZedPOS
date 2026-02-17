@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBusiness } from "@/contexts/BusinessContext";
-import { usePermissions } from "@/hooks/usePermissions"; // <--- Import Permissions Hook
+import { usePermissions } from "@/hooks/usePermissions"; 
 import { createClient } from "@/supabase/client";
 import { useRouter } from "next/navigation";
 import { 
@@ -31,12 +31,22 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { businessName } = useBusiness();
-  const { role } = usePermissions(); // <--- Get current role
+  const { role } = usePermissions(); 
   const supabase = createClient();
 
   const handleLogout = async () => {
+    // 1. Clear Gatekeeper Data
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem('active_staff_role');
+        localStorage.removeItem('active_staff_name');
+        localStorage.removeItem('active_staff_id');
+    }
+
+    // 2. Sign Out
     await supabase.auth.signOut();
-    router.push("/login");
+    
+    // 3. Redirect to Home (Root)
+    router.push("/");
   };
 
   return (

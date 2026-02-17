@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/supabase/client';
 import { useBusiness } from '@/contexts/BusinessContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogOut, Store } from 'lucide-react'; // Added Icons
 
 interface StaffMember {
   id: string;
@@ -38,7 +38,7 @@ export default function GatekeeperPage() {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        router.push('/login');
+        router.push('/'); // FIX: Redirect to Home instead of /login
         return;
       }
 
@@ -123,12 +123,22 @@ export default function GatekeeperPage() {
     e.preventDefault();
     if (!selectedStaff) return;
 
-    if (pin === (selectedStaff.pin_code ?? '0000')) {
+    // FIX: Robust PIN comparison (trim whitespace and ensure string)
+    const storedPin = String(selectedStaff.pin_code || '0000').trim();
+    const inputPin = pin.trim();
+
+    if (inputPin === storedPin) {
       handleAutoLogin(selectedStaff);
     } else {
       setError('Incorrect PIN');
       setPin('');
     }
+  };
+
+  // FIX: Added Emergency Logout
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
   };
 
   if (statusMessage) {
@@ -142,33 +152,57 @@ export default function GatekeeperPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-        <div className="bg-emerald-600 p-8 text-center">
-          <h1 className="text-2xl font-bold text-white mb-2">Who is this?</h1>
-          <p className="text-emerald-100">Select your profile to continue</p>
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        
+        {/* Header */}
+        <div className="bg-emerald-600 p-8 text-center relative overflow-hidden">
+           {/* Decorative background circle */}
+           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500 rounded-full opacity-50 blur-3xl"></div>
+           
+           <div className="relative z-10">
+             <div className="mx-auto bg-white/20 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm">
+                <Store className="w-8 h-8 text-white" />
+             </div>
+             <h1 className="text-2xl font-bold text-white mb-2">Who is this?</h1>
+             <p className="text-emerald-100 text-sm">Select your profile to continue</p>
+           </div>
         </div>
 
         <div className="p-8">
           {!selectedStaff ? (
-            <div className="grid grid-cols-2 gap-4">
-              {staffMembers.map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => setSelectedStaff(member)}
-                  className="flex flex-col items-center p-4 border-2 border-gray-100 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-all aspect-square justify-center"
-                >
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 text-xl font-bold ${
-                      member.role === 'owner' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {(member.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="font-semibold text-gray-900 text-sm">{member.name}</span>
-                  <span className="text-xs text-gray-500 capitalize">{member.role}</span>
-                </button>
-              ))}
-            </div>
+            <>
+                <div className="grid grid-cols-2 gap-4">
+                {staffMembers.map((member) => (
+                    <button
+                    key={member.id}
+                    onClick={() => setSelectedStaff(member)}
+                    className="group flex flex-col items-center p-4 border-2 border-gray-100 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50 transition-all aspect-square justify-center relative overflow-hidden"
+                    >
+                    <div
+                        className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 text-xl font-bold transition-colors ${
+                        member.role === 'owner' 
+                            ? 'bg-purple-100 text-purple-600 group-hover:bg-purple-200' 
+                            : 'bg-gray-100 text-gray-600 group-hover:bg-white'
+                        }`}
+                    >
+                        {(member.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-bold text-gray-900 text-sm">{member.name}</span>
+                    <span className="text-xs text-gray-500 capitalize mt-1">{member.role}</span>
+                    </button>
+                ))}
+                </div>
+                
+                {/* Sign Out Link */}
+                <div className="mt-8 text-center pt-6 border-t border-gray-100">
+                    <button 
+                        onClick={handleSignOut}
+                        className="text-sm text-gray-400 hover:text-red-500 flex items-center justify-center gap-2 mx-auto transition-colors"
+                    >
+                        <LogOut className="w-4 h-4" /> Switch Account
+                    </button>
+                </div>
+            </>
           ) : (
             <form onSubmit={handleLogin} className="space-y-6">
               <div className="text-center">
@@ -179,15 +213,20 @@ export default function GatekeeperPage() {
                     setPin('');
                     setError('');
                   }}
-                  className="text-sm text-gray-400 hover:text-gray-600 mb-4"
+                  className="text-sm text-gray-400 hover:text-emerald-600 mb-6 flex items-center justify-center gap-1 transition-colors"
                 >
                   ← Choose different user
                 </button>
+                
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 text-2xl font-bold flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
+                    {(selectedStaff.name || 'U').charAt(0).toUpperCase()}
+                </div>
+                
                 <h2 className="text-xl font-bold text-gray-900">Hello, {selectedStaff.name}</h2>
-                <p className="text-sm text-gray-500">Enter your PIN</p>
+                <p className="text-sm text-gray-500 mt-1">Enter your 4-digit PIN</p>
               </div>
 
-              <div className="flex justify-center">
+              <div className="flex justify-center my-6">
                 <input
                   type="password"
                   inputMode="numeric"
@@ -199,17 +238,22 @@ export default function GatekeeperPage() {
                     setPin(v);
                     setError('');
                   }}
-                  className="text-center text-4xl tracking-[1em] w-48 border-b-2 border-gray-300 focus:border-emerald-500 outline-none font-mono py-2"
+                  className="text-center text-4xl tracking-[0.5em] w-full max-w-[200px] border-b-2 border-gray-200 focus:border-emerald-500 outline-none font-mono py-2 bg-transparent transition-colors text-gray-800"
                   placeholder="••••"
+                  autoFocus
                 />
               </div>
 
-              {error && <p className="text-center text-red-500 font-medium">{error}</p>}
+              {error && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center animate-in fade-in slide-in-from-top-1">
+                    {error}
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={pin.length < 4}
-                className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-200 active:scale-[0.98]"
               >
                 Access System
               </button>
