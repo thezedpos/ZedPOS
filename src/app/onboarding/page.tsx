@@ -87,23 +87,23 @@ export default function OnboardingPage() {
         return;
       }
 
-      // --- CALCULATE TRIAL DATES ---
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 30); // 30 Days from now
-      const isoDate = trialEndDate.toISOString();
+      // --- FIX 1: ROBUST DATE CALCULATION ---
+      const now = new Date();
+      // Add exactly 30 days in milliseconds to avoid browser calendar quirks
+      const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+      const isoDate = thirtyDaysFromNow.toISOString();
 
       // 1. Insert new business (WITH TRIAL DATA)
-      // This matches the logic from the Signup page exactly.
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert({
           name: shopName.trim(),
           subscription_tier: 'pro',       
           subscription_status: 'trial',   
-          trial_ends_at: isoDate,
+          trial_ends_at: isoDate,        // <--- Uses robust date
           subscription_end_date: isoDate, 
           current_period_end: isoDate,
-          created_at: new Date().toISOString()
+          created_at: now.toISOString()
         })
         .select('id, name')
         .single();
@@ -115,13 +115,15 @@ export default function OnboardingPage() {
       }
 
       // 2. Insert business_members row
+      // --- FIX 2: ADD PIN CODE ---
       const { error: memberError } = await supabase
         .from('business_members')
         .insert({
           user_id: user.id,
           business_id: businessData.id,
           role: 'owner',
-          email: user.email
+          email: user.email,
+          pin_code: '0000' // <--- CRITICAL FIX: Missing in your old code
         });
 
       // Ignore "Duplicate Key" error (Code 23505) if trigger ran first
@@ -132,7 +134,6 @@ export default function OnboardingPage() {
       }
 
       // 3. Safety Check: Ensure Subscription Record Exists
-      // (This is a backup table, but good to keep in sync)
       const { data: sub } = await supabase
         .from('subscriptions')
         .select('id')
@@ -144,7 +145,7 @@ export default function OnboardingPage() {
           business_id: businessData.id,
           plan_type: 'premium',
           status: 'trial',
-          trial_start_date: new Date().toISOString(),
+          trial_start_date: now.toISOString(),
           trial_ends_at: isoDate
         });
       }

@@ -35,14 +35,19 @@ export default function Dashboard() {
     }
   }, [isLoading, businessId, router]);
 
-  // NEW: Calculate Trial Days directly from the Context (Faster!)
+  // NEW: Robust Trial Calculation
   useEffect(() => {
-    if (business?.subscription_status === 'trial' && business?.subscription_end_date) {
-      const endDate = new Date(business.subscription_end_date);
-      const now = new Date();
-      const diffTime = endDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      setTrialDaysLeft(Math.max(0, diffDays));
+    if (business?.subscription_status === 'trial') {
+      // SAFETY CHECK: Look at both fields to find the date
+      const targetDate = business.subscription_end_date || business.trial_ends_at;
+      
+      if (targetDate) {
+        const endDate = new Date(targetDate);
+        const now = new Date();
+        const diffTime = endDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setTrialDaysLeft(Math.max(0, diffDays));
+      }
     } else {
       setTrialDaysLeft(null); 
     }
