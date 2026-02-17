@@ -1,15 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation'; // Added useRouter
-import { createClient } from '@/supabase/client'; // Added Supabase client
+import { usePathname, useRouter } from 'next/navigation';
+import { createClient } from '@/supabase/client';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Home, Calculator, Package, BarChart3, Settings, LogOut } from 'lucide-react'; // Added LogOut
+import { Home, Calculator, Package, BarChart3, Settings, LogOut } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Home', restricted: true },
   { href: '/dashboard/pos', icon: Calculator, label: 'POS', restricted: false },
-  { href: '/dashboard/inventory', icon: Package, label: 'Inv', restricted: true }, // Shortened label
+  { href: '/dashboard/inventory', icon: Package, label: 'Inv', restricted: true },
   { href: '/dashboard/sales', icon: BarChart3, label: 'Reports', restricted: true },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings', restricted: true },
 ];
@@ -20,7 +20,7 @@ export function MobileNav() {
   const { role } = usePermissions();
   const supabase = createClient();
 
-  // 1. Logic to Handle Sign Out (The Fix)
+  // 1. Logic to Handle Sign Out
   const handleSignOut = async () => {
     // Clear Gatekeeper Data
     if (typeof window !== 'undefined') {
@@ -29,9 +29,12 @@ export function MobileNav() {
         localStorage.removeItem('active_staff_id');
     }
     
-    // Sign out and Redirect to Home (/)
+    // Sign out
     await supabase.auth.signOut();
+
+    // Redirect to Home (/) AND Refresh
     router.push('/'); 
+    router.refresh();
   };
 
   // 2. Filter nav items based on user role

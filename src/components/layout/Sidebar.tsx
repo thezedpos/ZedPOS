@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image"; // <--- Added Image
 import { usePathname } from "next/navigation";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { usePermissions } from "@/hooks/usePermissions"; 
@@ -13,14 +14,13 @@ import {
   ShoppingCart, 
   Users, 
   Settings, 
-  LogOut,
-  Store
+  LogOut
 } from "lucide-react";
 
 // Define items with a 'restricted' flag
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, restricted: true },
-  { name: "POS System", href: "/dashboard/pos", icon: Calculator, restricted: false }, // Everyone sees this
+  { name: "POS System", href: "/dashboard/pos", icon: Calculator, restricted: false },
   { name: "Inventory", href: "/dashboard/inventory", icon: Package, restricted: true },
   { name: "Sales History", href: "/dashboard/sales", icon: ShoppingCart, restricted: true },
   { name: "Customers", href: "/dashboard/customers", icon: Users, restricted: true },
@@ -45,20 +45,30 @@ export function Sidebar() {
     // 2. Sign Out
     await supabase.auth.signOut();
     
-    // 3. Redirect to Home (Root)
+    // 3. Redirect to Home (Root) AND Refresh to clear cache
     router.push("/");
+    router.refresh(); 
   };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-30">
+      
       {/* Header / Logo */}
       <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-        <div className="bg-emerald-100 p-2 rounded-lg">
-          <Store className="w-6 h-6 text-emerald-600" />
+        {/* UPDATED: Uses your custom logo now */}
+        <div className="relative w-10 h-10 shrink-0">
+           <Image 
+             src="/image.png" 
+             alt="Logo" 
+             fill 
+             className="object-contain"
+             sizes="40px"
+           />
         </div>
+        
         <div className="min-w-0">
-          <h2 className="font-bold text-gray-900 truncate w-32">
-            {businessName || "My Shop"}
+          <h2 className="font-bold text-gray-900 truncate w-full">
+            {businessName || "ZedPOS"}
           </h2>
           <p className="text-xs text-gray-500 capitalize">{role || "Staff"} View</p>
         </div>
@@ -68,7 +78,6 @@ export function Sidebar() {
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           // --- SECURITY CHECK ---
-          // If user is a cashier, HIDE everything except POS
           if (role === 'cashier' && item.restricted) {
             return null;
           }
