@@ -19,8 +19,9 @@ export function SecuritySettings() {
     setMessage(null);
     setLoading(true);
 
+    // 1. Validate New PIN Format
     if (newPin.length !== 4 || newPin !== confirmPin) {
-      setMessage({ text: 'PINs must match and be 4 digits.', type: 'error' });
+      setMessage({ text: 'New PINs must match and be 4 digits.', type: 'error' });
       setLoading(false);
       return;
     }
@@ -29,30 +30,45 @@ export function SecuritySettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !businessId) throw new Error('Not authenticated');
 
-      const { data: member } = await supabase
+      // 2. Fetch Current PIN from Database
+      const { data: member, error: fetchError } = await supabase
         .from('business_members')
         .select('pin_code')
         .eq('user_id', user.id)
         .eq('business_id', businessId)
         .single();
 
-      if (!member || member.pin_code !== currentPin) {
+      if (fetchError || !member) throw new Error('Could not verify identity.');
+
+      // 3. Verify Current PIN (Robust Check)
+      // We convert both to strings and trim whitespace to prevent "false negatives"
+      const dbPin = String(member.pin_code || '').trim();
+      const inputPin = currentPin.trim();
+
+      if (dbPin !== inputPin) {
         setMessage({ text: 'Current PIN is incorrect.', type: 'error' });
         setLoading(false);
         return;
       }
 
-      await supabase
+      // 4. Update to New PIN
+      const { error: updateError } = await supabase
         .from('business_members')
-        .update({ pin_code: newPin })
+        .update({ pin_code: newPin.trim() })
         .eq('user_id', user.id)
         .eq('business_id', businessId);
 
+      if (updateError) throw updateError;
+
       setMessage({ text: 'PIN updated successfully!', type: 'success' });
+      
+      // Clear forms
       setCurrentPin('');
       setNewPin('');
       setConfirmPin('');
+
     } catch (err: unknown) {
+      console.error(err);
       setMessage({ text: (err as Error).message || 'Failed to update PIN.', type: 'error' });
     } finally {
       setLoading(false);
@@ -72,6 +88,8 @@ export function SecuritySettings() {
       </div>
       <div className="p-6">
         <form onSubmit={handleUpdatePin} className="max-w-md space-y-4">
+          
+          {/* Current PIN */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Current PIN</label>
             <input
@@ -80,10 +98,12 @@ export function SecuritySettings() {
               required
               value={currentPin}
               onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest focus:ring-2 focus:ring-purple-500 transition-all"
               placeholder="••••"
             />
           </div>
+
+          {/* New PINs */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">New PIN</label>
@@ -93,7 +113,7 @@ export function SecuritySettings() {
                 required
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest focus:ring-2 focus:ring-purple-500 transition-all"
                 placeholder="••••"
               />
             </div>
@@ -105,11 +125,13 @@ export function SecuritySettings() {
                 required
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest focus:ring-2 focus:ring-purple-500 transition-all"
                 placeholder="••••"
               />
             </div>
           </div>
+
+          {/* Messages */}
           {message && (
             <div
               className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
@@ -117,17 +139,19 @@ export function SecuritySettings() {
               }`}
             >
               {message.type === 'success' ? (
-                <CheckCircle className="w-4 h-4" />
+                <CheckCircle className="w-4 h-4 shrink-0" />
               ) : (
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
               )}
               {message.text}
             </div>
           )}
+
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-purple-600 text-white py-2.5 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-purple-600 text-white py-2.5 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update PIN'}
           </button>

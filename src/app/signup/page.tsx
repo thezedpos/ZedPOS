@@ -13,14 +13,22 @@ export default function SignupPage() {
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // STATE: specific for "Stuck" users (fixes the "User Already Registered" error)
+  const [existingUser, setExistingUser] = useState<{id: string, email: string} | null>(null);
 
-  // Clean up session on load
+  // 1. Check if user is ALREADY logged in but missing a shop
   useEffect(() => {
-    const clearSession = async () => {
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) await supabase.auth.signOut();
+      if (session && session.user) {
+        setExistingUser({
+            id: session.user.id,
+            email: session.user.email || ""
+        });
+      }
     };
-    clearSession();
+    checkSession();
   }, [supabase]);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -29,40 +37,56 @@ export default function SignupPage() {
     setError("");
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email")?.toString().trim();
-    const password = formData.get("password")?.toString().trim();
-    const fullName = formData.get("fullName")?.toString().trim();
     const businessName = formData.get("businessName")?.toString().trim();
-    const confirmPassword = formData.get("confirmPassword")?.toString().trim();
+    const fullName = formData.get("fullName")?.toString().trim();
+    
+    // Only get these if we are a NEW user
+    const email = !existingUser ? formData.get("email")?.toString().trim() : existingUser.email;
+    const password = !existingUser ? formData.get("password")?.toString().trim() : null;
+    const confirmPassword = !existingUser ? formData.get("confirmPassword")?.toString().trim() : null;
 
-    if (!email || !password || !fullName || !businessName) {
-      setError("Please fill in all fields.");
+    // Validation
+    if (!businessName || !fullName) {
+      setError("Please fill in your Name and Business Name.");
       setLoading(false);
       return; 
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      setLoading(false);
-      return;
+    if (!existingUser) {
+        if (!email || !password) {
+            setError("Please fill in all fields.");
+            setLoading(false);
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
+            setLoading(false);
+            return;
+        }
     }
 
     try {
-      // 1. Sign Up
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
+      let userId = existingUser?.id;
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Please check your email for a confirmation link.");
-      
-      const userId = authData.user.id;
+      // STEP 1: Create Auth User (ONLY IF NOT LOGGED IN)
+      if (!existingUser && email && password) {
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: fullName } },
+          });
 
-      // 2. Create Business
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 30);
+          if (authError) throw authError;
+          if (!authData.user) throw new Error("Please check your email for a confirmation link.");
+          userId = authData.user.id;
+      }
+
+      if (!userId) throw new Error("User identification failed.");
+
+      // STEP 2: Create Business (The Missing Piece)
+      const now = new Date();
+      const trialEndDate = new Date(now);
+      trialEndDate.setDate(now.getDate() + 30); // 30 Days Correct Logic
 
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
@@ -71,14 +95,14 @@ export default function SignupPage() {
             subscription_tier: 'pro',       
             subscription_status: 'trial',
             trial_ends_at: trialEndDate.toISOString(),
-            created_at: new Date().toISOString() 
+            created_at: now.toISOString() 
         }])
         .select()
         .single();
 
       if (businessError) throw new Error(businessError.message);
 
-      // 3. Link User as Owner
+      // STEP 3: Link User as Owner
       await supabase.from('business_members').insert([{
         business_id: businessData.id,
         user_id: userId,
@@ -88,12 +112,13 @@ export default function SignupPage() {
         pin_code: '0000'
       }]);
 
+      // Success! Go to Dashboard
       router.push('/dashboard');
       router.refresh(); 
 
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Sign up failed.");
+      setError(err.message || "Setup failed.");
     } finally {
       setLoading(false);
     }
@@ -103,15 +128,21 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl border border-gray-100">
         
-        {/* Header */}
+        {/* Header Changes based on Mode */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="bg-emerald-100 p-3 rounded-2xl">
               <Building2 className="w-8 h-8 text-emerald-600" />
             </div>
           </div>
-          <h1 className="text-2xl font-extrabold text-gray-900">Create Account</h1>
-          <p className="mt-2 text-sm text-gray-500">Start your 30-day free trial</p>
+          <h1 className="text-2xl font-extrabold text-gray-900">
+            {existingUser ? "Complete Your Shop" : "Create Account"}
+          </h1>
+          <p className="mt-2 text-sm text-gray-500">
+            {existingUser 
+              ? "You are logged in! Just name your shop to finish." 
+              : "Start your 30-day free trial"}
+          </p>
         </div>
 
         {/* Error Banner */}
@@ -124,7 +155,7 @@ export default function SignupPage() {
 
         <form onSubmit={handleSignup} className="space-y-5">
           
-          {/* Business Name */}
+          {/* Business Name (Always Show) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
             <div className="relative">
@@ -133,7 +164,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Full Name */}
+          {/* Full Name (Always Show) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Your Full Name</label>
             <div className="relative">
@@ -142,32 +173,37 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
-              <input name="email" type="email" required className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="you@example.com" />
-            </div>
-          </div>
+          {/* HIDDEN FIELDS FOR LOGGED IN USERS */}
+          {!existingUser && (
+              <>
+                {/* Email */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                    <div className="relative">
+                    <Mail className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+                    <input name="email" type="email" required className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="you@example.com" />
+                    </div>
+                </div>
 
-          {/* Passwords */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <Lock className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
-                <input name="password" type="password" required minLength={6} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="••••••" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
-              <div className="relative">
-                <CheckCircle className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
-                <input name="confirmPassword" type="password" required minLength={6} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="••••••" />
-              </div>
-            </div>
-          </div>
+                {/* Passwords */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <div className="relative">
+                        <Lock className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+                        <input name="password" type="password" required minLength={6} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="••••••" />
+                    </div>
+                    </div>
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                    <div className="relative">
+                        <CheckCircle className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+                        <input name="confirmPassword" type="password" required minLength={6} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="••••••" />
+                    </div>
+                    </div>
+                </div>
+              </>
+          )}
 
           <button
             type="submit"
@@ -176,20 +212,35 @@ export default function SignupPage() {
           >
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : (
               <>
-                Create Shop <ArrowRight className="w-5 h-5 ml-2" />
+                {existingUser ? "Complete Setup" : "Create Shop"} <ArrowRight className="w-5 h-5 ml-2" />
               </>
             )}
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-          <p className="text-gray-500 text-sm">
-            Already have an account?{' '}
-            <Link href="/login" className="text-emerald-600 font-bold hover:underline">
-              Log in here
-            </Link>
-          </p>
-        </div>
+        {/* Footer Link (Only if NOT logged in) */}
+        {!existingUser && (
+            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p className="text-gray-500 text-sm">
+                Already have an account?{' '}
+                <Link href="/" className="text-emerald-600 font-bold hover:underline">
+                Log in here
+                </Link>
+            </p>
+            </div>
+        )}
+        
+        {/* Logout Link (If stuck logged in) */}
+        {existingUser && (
+             <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                <p className="text-gray-500 text-sm">
+                    Not {existingUser.email}?{' '}
+                    <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} className="text-red-600 font-bold hover:underline">
+                        Log out
+                    </button>
+                </p>
+           </div>
+        )}
 
       </div>
     </div>

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image component
 import { createClient } from '@/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Loader2, Mail, Lock, Store, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function RootPage() {
   const [email, setEmail] = useState('');
@@ -48,8 +49,15 @@ export default function RootPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="bg-emerald-100 p-3 rounded-2xl">
-              <Store className="w-8 h-8 text-emerald-600" />
+            {/* APP ICON */}
+            <div className="relative w-20 h-20">
+               <Image 
+                 src="/image.png" 
+                 alt="ZedPOS Logo" 
+                 fill 
+                 className="object-contain"
+                 priority
+               />
             </div>
           </div>
           <h2 className="text-2xl font-extrabold text-gray-900">
@@ -91,7 +99,7 @@ export default function RootPage() {
                 Password
               </label>
               <Link
-                href="/reset-password"  // <--- UPDATED LINK
+                href="/reset-password"  // <--- CORRECTED LINK
                 className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
               >
                 Forgot password?
