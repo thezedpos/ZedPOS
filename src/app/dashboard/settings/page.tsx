@@ -17,8 +17,20 @@ export default function SettingsPage() {
 
   // Helper to handle logout
   const handleLogout = async () => {
+    // 1. Clear Gatekeeper Data (Vital for clean logout)
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem('active_staff_role');
+        localStorage.removeItem('active_staff_name');
+        localStorage.removeItem('active_staff_id');
+        // Clear the cookie as well if you used it
+        document.cookie = "active_staff_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
+
+    // 2. Sign Out
     await supabase.auth.signOut();
-    router.push("/login");
+    
+    // 3. Redirect to Home (/) instead of the broken /login
+    router.push("/");
   };
 
   const isTrial = business?.subscription_status === 'trial';

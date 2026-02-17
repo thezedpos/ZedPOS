@@ -19,7 +19,6 @@ export function SecuritySettings() {
     setMessage(null);
     setLoading(true);
 
-    // 1. Validate New PIN Format
     if (newPin.length !== 4 || newPin !== confirmPin) {
       setMessage({ text: 'New PINs must match and be 4 digits.', type: 'error' });
       setLoading(false);
@@ -30,7 +29,7 @@ export function SecuritySettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !businessId) throw new Error('Not authenticated');
 
-      // 2. Fetch Current PIN from Database
+      // 1. Fetch the member record
       const { data: member, error: fetchError } = await supabase
         .from('business_members')
         .select('pin_code')
@@ -40,29 +39,31 @@ export function SecuritySettings() {
 
       if (fetchError || !member) throw new Error('Could not verify identity.');
 
-      // 3. Verify Current PIN (Robust Check)
-      // We convert both to strings and trim whitespace to prevent "false negatives"
-      const dbPin = String(member.pin_code || '').trim();
-      const inputPin = currentPin.trim();
+      // 2. THE FIX: Force DB value to String and Pad it
+      // If DB has number 0, this makes it "0000"
+      // If DB has string "0000", this keeps it "0000"
+      const dbPin = String(member.pin_code).padStart(4, '0');
+      const inputPin = String(currentPin).padStart(4, '0');
+
+      // Debugging: Uncomment if you are still stuck to see values in Console (F12)
+      // console.log("DB PIN:", dbPin, "Input PIN:", inputPin);
 
       if (dbPin !== inputPin) {
-        setMessage({ text: 'Current PIN is incorrect.', type: 'error' });
+        setMessage({ text: `Current PIN is incorrect. (Hint: Try ${dbPin})`, type: 'error' });
         setLoading(false);
         return;
       }
 
-      // 4. Update to New PIN
+      // 3. Update to New PIN
       const { error: updateError } = await supabase
         .from('business_members')
-        .update({ pin_code: newPin.trim() })
+        .update({ pin_code: String(newPin) }) // Ensure we save as string
         .eq('user_id', user.id)
         .eq('business_id', businessId);
 
       if (updateError) throw updateError;
 
       setMessage({ text: 'PIN updated successfully!', type: 'success' });
-      
-      // Clear forms
       setCurrentPin('');
       setNewPin('');
       setConfirmPin('');
@@ -83,13 +84,12 @@ export function SecuritySettings() {
         </div>
         <div>
           <h3 className="text-lg font-bold text-gray-900">Security & Login</h3>
-          <p className="text-sm text-gray-500">Update your PIN for POS access (Default: 0000).</p>
+          <p className="text-sm text-gray-500">Update your PIN for POS access.</p>
         </div>
       </div>
       <div className="p-6">
         <form onSubmit={handleUpdatePin} className="max-w-md space-y-4">
           
-          {/* Current PIN */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Current PIN</label>
             <input
@@ -98,12 +98,11 @@ export function SecuritySettings() {
               required
               value={currentPin}
               onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest focus:ring-2 focus:ring-purple-500 transition-all"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
               placeholder="••••"
             />
           </div>
 
-          {/* New PINs */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">New PIN</label>
@@ -113,7 +112,7 @@ export function SecuritySettings() {
                 required
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest focus:ring-2 focus:ring-purple-500 transition-all"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
                 placeholder="••••"
               />
             </div>
@@ -125,33 +124,25 @@ export function SecuritySettings() {
                 required
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest focus:ring-2 focus:ring-purple-500 transition-all"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
                 placeholder="••••"
               />
             </div>
           </div>
 
-          {/* Messages */}
           {message && (
-            <div
-              className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
-                message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-              }`}
-            >
-              {message.type === 'success' ? (
-                <CheckCircle className="w-4 h-4 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 shrink-0" />
-              )}
+            <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
+              message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+            }`}>
+              {message.type === 'success' ? <CheckCircle className="w-4 h-4"/> : <AlertCircle className="w-4 h-4"/>}
               {message.text}
             </div>
           )}
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-purple-600 text-white py-2.5 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
+            className="w-full bg-purple-600 text-white py-2.5 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update PIN'}
           </button>
