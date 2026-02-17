@@ -17,24 +17,38 @@ export default function SettingsPage() {
 
   // Helper to handle logout
   const handleLogout = async () => {
-    // 1. Clear Gatekeeper Data (Vital for clean logout)
+    // 1. Clear Gatekeeper Data
     if (typeof window !== 'undefined') {
         localStorage.removeItem('active_staff_role');
         localStorage.removeItem('active_staff_name');
         localStorage.removeItem('active_staff_id');
-        // Clear the cookie as well if you used it
         document.cookie = "active_staff_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     }
 
     // 2. Sign Out
     await supabase.auth.signOut();
     
-    // 3. Redirect to Home (/) instead of the broken /login
+    // 3. Redirect to Home (/)
     router.push("/");
+  };
+
+  // --- NEW: Calculate Days Remaining Correctly ---
+  const calculateDaysLeft = (dateString: string | null | undefined) => {
+    if (!dateString) return 0;
+    const targetDate = new Date(dateString);
+    const now = new Date();
+    // Millisecond calculation for accuracy
+    const diffTime = targetDate.getTime() - now.getTime();
+    // Round UP so 29.1 days becomes 30 days
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const isTrial = business?.subscription_status === 'trial';
   const tier = (business?.subscription_tier || 'free').toUpperCase();
+  
+  // Calculate days based on either trial_end or subscription_end
+  const daysLeft = calculateDaysLeft(business?.trial_ends_at || business?.subscription_end_date);
+  const displayDays = Math.max(0, daysLeft);
 
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 pb-24">
@@ -55,10 +69,11 @@ export default function SettingsPage() {
           <p className="text-sm text-gray-500 capitalize">Role: {userRole}</p>
           
           <div className="mt-3 flex gap-2">
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            {/* UPDATED BADGE */}
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
               isTrial ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'
             }`}>
-              {isTrial ? 'PRO TRIAL' : `${tier} PLAN`}
+              {isTrial ? `PRO TRIAL (${displayDays} Days Left)` : `${tier} PLAN`}
             </span>
           </div>
         </div>

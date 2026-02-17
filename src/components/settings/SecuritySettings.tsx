@@ -39,14 +39,21 @@ export function SecuritySettings() {
 
       if (fetchError || !member) throw new Error('Could not verify identity.');
 
-      // 2. THE FIX: Force DB value to String and Pad it
-      // If DB has number 0, this makes it "0000"
-      // If DB has string "0000", this keeps it "0000"
-      const dbPin = String(member.pin_code).padStart(4, '0');
-      const inputPin = String(currentPin).padStart(4, '0');
+      // --- THE FIX: HANDLE NULL VALUES ---
+      // If DB has null, we treat it as '0000' so the user can actually reset it.
+      let dbPin = member.pin_code;
+      
+      if (dbPin === null || dbPin === undefined || dbPin === '') {
+        dbPin = '0000';
+      } else {
+        dbPin = String(dbPin).trim();
+      }
 
-      // Debugging: Uncomment if you are still stuck to see values in Console (F12)
-      // console.log("DB PIN:", dbPin, "Input PIN:", inputPin);
+      const inputPin = currentPin.trim();
+
+      // Debugging (Optional - remove later)
+      // console.log("DB PIN (Normalized):", dbPin);
+      // console.log("Input PIN:", inputPin);
 
       if (dbPin !== inputPin) {
         setMessage({ text: `Current PIN is incorrect. (Hint: Try ${dbPin})`, type: 'error' });
@@ -101,6 +108,7 @@ export function SecuritySettings() {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none font-mono tracking-widest"
               placeholder="••••"
             />
+            <p className="text-xs text-gray-400 mt-1">Default is 0000</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

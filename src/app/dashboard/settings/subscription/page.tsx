@@ -3,11 +3,11 @@
 import { useBusiness } from "@/contexts/BusinessContext"; 
 import { createClient } from "@/supabase/client"; 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Added router for navigation
-import { Check, Phone, Mail, Zap, Loader2, ArrowLeft } from "lucide-react"; // Added ArrowLeft
+import { useRouter } from "next/navigation"; 
+import { Check, Phone, Mail, Zap, Loader2, ArrowLeft } from "lucide-react"; 
 
 export default function SubscriptionPage() {
-  const router = useRouter(); // Hook for navigation
+  const router = useRouter(); 
   const { businessId, isLoading: authLoading } = useBusiness();
   const [business, setBusiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,8 @@ export default function SubscriptionPage() {
       try {
         const { data } = await supabase
           .from('businesses')
-          .select('subscription_tier, subscription_status, subscription_end_date')
+          // FIX 1: ADDED 'trial_ends_at' TO THE QUERY
+          .select('subscription_tier, subscription_status, subscription_end_date, trial_ends_at')
           .eq('id', businessId)
           .single();
           
@@ -49,10 +50,22 @@ export default function SubscriptionPage() {
   
   const visualTier = isTrial ? 'pro' : rawTier;
 
-  const endDate = business?.subscription_end_date ? new Date(business.subscription_end_date) : new Date();
-  const today = new Date();
-  const diffTime = Math.abs(endDate.getTime() - today.getTime());
-  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  // FIX 2: ROBUST DATE CALCULATION (Checks both fields)
+  const getDaysRemaining = () => {
+    const targetDateStr = business?.subscription_end_date || business?.trial_ends_at;
+    if (!targetDateStr) return 0;
+
+    const endDate = new Date(targetDateStr);
+    const today = new Date();
+    
+    // Calculate difference in milliseconds
+    const diffTime = endDate.getTime() - today.getTime();
+    
+    // Round UP to ensure partial days count as 1 day
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const daysLeft = Math.max(0, getDaysRemaining());
 
   const handleUpgradeClick = (plan: string) => {
     setSelectedPlan(plan);
@@ -69,7 +82,6 @@ export default function SubscriptionPage() {
   }
 
   return (
-    // Added pb-24 to ensure bottom content isn't hidden by mobile nav
     <div className="max-w-6xl mx-auto p-4 md:p-8 pb-24">
       
       {/* --- BACK BUTTON --- */}
