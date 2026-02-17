@@ -1,146 +1,246 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { createClient } from '@/supabase/client';
-import { useRouter } from 'next/navigation';
-import { Loader2, Mail, Lock, Store, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { createClient } from "@/supabase/client";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { 
+  Loader2, Building2, User, Mail, Lock, CheckCircle, Store, ArrowRight, AlertCircle
+} from "lucide-react";
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function SignupPage() {
   const router = useRouter();
   const supabase = createClient();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  // STATE: specific for "Stuck" users
+  const [existingUser, setExistingUser] = useState<{id: string, email: string} | null>(null);
 
+  // 1. Check if user is ALREADY logged in but missing a shop
   useEffect(() => {
-    const checkUser = async () => {
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) router.push('/dashboard');
+      if (session && session.user) {
+        setExistingUser({
+            id: session.user.id,
+            email: session.user.email || ""
+        });
+      }
     };
-    checkUser();
-  }, [router, supabase]);
+    checkSession();
+  }, [supabase]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const formData = new FormData(e.currentTarget);
+    const businessName = formData.get("businessName")?.toString().trim();
+    const fullName = formData.get("fullName")?.toString().trim();
+    
+    // Only get these if we are a NEW user
+    const email = !existingUser ? formData.get("email")?.toString().trim() : existingUser.email;
+    const password = !existingUser ? formData.get("password")?.toString().trim() : null;
+    const confirmPassword = !existingUser ? formData.get("confirmPassword")?.toString().trim() : null;
 
-    if (error) {
-      setError(error.message);
+    // Validation
+    if (!businessName || !fullName) {
+      setError("Please fill in your Name and Business Name.");
       setLoading(false);
-    } else {
+      return; 
+    }
+
+    if (!existingUser) {
+        if (!email || !password) {
+            setError("Please fill in all fields.");
+            setLoading(false);
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
+            setLoading(false);
+            return;
+        }
+    }
+
+    try {
+      let userId = existingUser?.id;
+
+      // STEP 1: Create Auth User (ONLY IF NOT LOGGED IN)
+      if (!existingUser && email && password) {
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: fullName } },
+          });
+
+          if (authError) throw authError;
+          if (!authData.user) throw new Error("Please check your email for a confirmation link.");
+          userId = authData.user.id;
+      }
+
+      if (!userId) throw new Error("User identification failed.");
+
+      // STEP 2: Create Business (The Missing Piece)
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 30);
+
+      const { data: businessData, error: businessError } = await supabase
+        .from('businesses')
+        .insert([{ 
+            name: businessName, 
+            subscription_tier: 'pro',       
+            subscription_status: 'trial',
+            trial_ends_at: trialEndDate.toISOString(),
+            created_at: new Date().toISOString() 
+        }])
+        .select()
+        .single();
+
+      if (businessError) throw new Error(businessError.message);
+
+      // STEP 3: Link User as Owner
+      await supabase.from('business_members').insert([{
+        business_id: businessData.id,
+        user_id: userId,
+        name: fullName,
+        role: 'owner',
+        email: email,
+        pin_code: '0000'
+      }]);
+
+      // Success! Go to Dashboard
       router.push('/dashboard');
+      router.refresh(); 
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Setup failed.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl border border-gray-100">
         
-        {/* Header */}
+        {/* Header Changes based on Mode */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="bg-emerald-100 p-3 rounded-2xl">
-              <Store className="w-8 h-8 text-emerald-600" />
+              <Building2 className="w-8 h-8 text-emerald-600" />
             </div>
           </div>
-          <h2 className="text-2xl font-extrabold text-gray-900">
-            Welcome Back
-          </h2>
+          <h1 className="text-2xl font-extrabold text-gray-900">
+            {existingUser ? "Complete Your Shop" : "Create Account"}
+          </h1>
           <p className="mt-2 text-sm text-gray-500">
-            Sign in to access your ZedPOS
+            {existingUser 
+              ? "You are logged in! Just name your shop to finish." 
+              : "Start your 30-day free trial"}
           </p>
         </div>
 
-        <form className="space-y-6" onSubmit={handleLogin}>
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-100 text-red-600 p-3 rounded-lg flex items-start text-sm animate-in fade-in gap-2">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSignup} className="space-y-5">
           
-          {/* Email Input */}
+          {/* Business Name (Always Show) */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-              />
+              <Store className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+              <input name="businessName" type="text" required className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="e.g. Lusaka Electronics" />
             </div>
           </div>
 
-          {/* Password Input */}
+          {/* Full Name (Always Show) */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <Link
-                href="/login/reset-password"
-                className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Your Full Name</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-              />
+              <User className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+              <input name="fullName" type="text" required className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="e.g. John Banda" />
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 border border-red-100">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
-            </div>
+          {/* HIDDEN FIELDS FOR LOGGED IN USERS */}
+          {!existingUser && (
+              <>
+                {/* Email */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                    <div className="relative">
+                    <Mail className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+                    <input name="email" type="email" required className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="you@example.com" />
+                    </div>
+                </div>
+
+                {/* Passwords */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <div className="relative">
+                        <Lock className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+                        <input name="password" type="password" required minLength={6} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="••••••" />
+                    </div>
+                    </div>
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                    <div className="relative">
+                        <CheckCircle className="absolute top-3 left-3 w-5 h-5 text-gray-400" />
+                        <input name="confirmPassword" type="password" required minLength={6} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="••••••" />
+                    </div>
+                    </div>
+                </div>
+              </>
           )}
 
-          {/* Big Green Login Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg shadow-emerald-200 text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-emerald-700 transition-all flex items-center justify-center shadow-lg shadow-emerald-200 mt-6 disabled:opacity-50 active:scale-[0.98]"
           >
-            {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Log In'}
+            {loading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+              <>
+                {existingUser ? "Complete Setup" : "Create Shop"} <ArrowRight className="w-5 h-5 ml-2" />
+              </>
+            )}
           </button>
         </form>
 
-        {/* Footer Link */}
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-          <p className="text-sm text-gray-500">
-            Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
-              Create a Shop
-            </Link>
-          </p>
-        </div>
+        {/* Footer Link (Only if NOT logged in) */}
+        {!existingUser && (
+            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p className="text-gray-500 text-sm">
+                Already have an account?{' '}
+                <Link href="/login" className="text-emerald-600 font-bold hover:underline">
+                Log in here
+                </Link>
+            </p>
+            </div>
+        )}
+        
+        {/* Logout Link (If stuck logged in) */}
+        {existingUser && (
+             <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                <p className="text-gray-500 text-sm">
+                    Not {existingUser.email}?{' '}
+                    <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} className="text-red-600 font-bold hover:underline">
+                        Log out
+                    </button>
+                </p>
+           </div>
+        )}
+
       </div>
     </div>
   );
