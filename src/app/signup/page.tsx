@@ -83,10 +83,10 @@ export default function SignupPage() {
 
       if (!userId) throw new Error("User identification failed.");
 
-      // STEP 2: Create Business (The Missing Piece)
+      // STEP 2: Create Business (FIXED DATE LOGIC)
+      // We use exact milliseconds to guarantee 30 days in the future
       const now = new Date();
-      const trialEndDate = new Date(now);
-      trialEndDate.setDate(now.getDate() + 30); // 30 Days Correct Logic
+      const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
 
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
@@ -94,7 +94,7 @@ export default function SignupPage() {
             name: businessName, 
             subscription_tier: 'pro',       
             subscription_status: 'trial',
-            trial_ends_at: trialEndDate.toISOString(),
+            trial_ends_at: thirtyDaysFromNow.toISOString(), // <--- ROBUST DATE
             created_at: now.toISOString() 
         }])
         .select()
@@ -102,14 +102,14 @@ export default function SignupPage() {
 
       if (businessError) throw new Error(businessError.message);
 
-      // STEP 3: Link User as Owner
+      // STEP 3: Link User as Owner (FIXED PIN LOGIC)
       await supabase.from('business_members').insert([{
         business_id: businessData.id,
         user_id: userId,
         name: fullName,
         role: 'owner',
         email: email,
-        pin_code: '0000'
+        pin_code: '0000' // <--- Explicit String "0000" (Not Number, Not Null)
       }]);
 
       // Success! Go to Dashboard
