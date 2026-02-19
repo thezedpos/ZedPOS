@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useBusiness } from '@/contexts/BusinessContext';
 import { createClient } from '@/supabase/client';
 import { ReceiptModal } from '@/components/sales/ReceiptModal';
-import { Loader2, Wallet, Smartphone, CreditCard } from 'lucide-react';
+import { Loader2, Wallet, Smartphone, CreditCard, Hash } from 'lucide-react';
 
 interface Sale {
   id: string;
+  receipt_number?: number; // <--- ADDED THIS
   total_amount: number;
   tax_amount: number;
   payment_method: string;
@@ -40,7 +41,6 @@ export default function SalesHistoryPage() {
     try {
       setLoading(true);
       
-      // Calculate date range based on filter
       const now = new Date();
       let startDate: Date;
       let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
@@ -64,7 +64,8 @@ export default function SalesHistoryPage() {
 
       const { data, error } = await supabase
         .from('sales')
-        .select('id, total_amount, tax_amount, payment_method, created_at, business_id, status, void_reason')
+        // ADDED receipt_number TO QUERY
+        .select('id, receipt_number, total_amount, tax_amount, payment_method, created_at, business_id, status, void_reason')
         .eq('business_id', businessId)
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
@@ -124,8 +125,8 @@ export default function SalesHistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-4 space-y-4">
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="p-4 space-y-4 max-w-3xl mx-auto">
         {/* Header */}
         <div className="pt-2">
           <h1 className="text-2xl font-bold text-gray-900">Sales History</h1>
@@ -137,8 +138,8 @@ export default function SalesHistoryPage() {
             onClick={() => setSelectedFilter('today')}
             className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-colors ${
               selectedFilter === 'today'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
             }`}
           >
             Today
@@ -147,8 +148,8 @@ export default function SalesHistoryPage() {
             onClick={() => setSelectedFilter('yesterday')}
             className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-colors ${
               selectedFilter === 'yesterday'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
             }`}
           >
             Yesterday
@@ -157,8 +158,8 @@ export default function SalesHistoryPage() {
             onClick={() => setSelectedFilter('this_week')}
             className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-colors ${
               selectedFilter === 'this_week'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
             }`}
           >
             This Week
@@ -171,40 +172,47 @@ export default function SalesHistoryPage() {
             <Loader2 className="animate-spin h-8 w-8 text-emerald-600" />
           </div>
         ) : sales.length === 0 ? (
-          <div className="bg-white rounded-lg p-8 text-center">
-            <p className="text-gray-500">No sales found for this period</p>
+          <div className="bg-white rounded-xl p-8 text-center border border-gray-100 shadow-sm">
+            <p className="text-gray-500 font-medium">No sales found for this period</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {sales.map((sale) => {
               const PaymentIcon = getPaymentIcon(sale.payment_method);
               return (
                 <button
                   key={sale.id}
                   onClick={() => setSelectedSale(sale)}
-                  className="w-full bg-white rounded-lg p-4 shadow-sm border border-gray-200 hover:border-emerald-500 hover:shadow-md transition-all text-left active:scale-[0.98]"
+                  className="w-full bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-emerald-500 hover:shadow-md transition-all text-left active:scale-[0.98] group"
                 >
-                  <div className="flex items-center justify-between">
-                    {/* Left: Time + Payment Method */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <PaymentIcon className="w-5 h-5 text-gray-600" />
-                        <span className="text-sm font-medium text-gray-900">
-                          {formatTime(sale.created_at)}
+                  <div className="flex items-center justify-between mb-2">
+                     <div className="flex items-center gap-2 text-gray-500">
+                        <Hash className="w-4 h-4" />
+                        <span className="text-sm font-bold text-gray-700">
+                           {sale.receipt_number ? sale.receipt_number : sale.id.slice(0, 6).toUpperCase()}
                         </span>
+                     </div>
+                     {getStatusBadge(sale)}
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-gray-50 p-2 rounded-lg group-hover:bg-emerald-50 transition-colors">
+                         <PaymentIcon className="w-5 h-5 text-gray-600 group-hover:text-emerald-600" />
                       </div>
-                      <span className="text-xs text-gray-500 capitalize">
-                        {sale.payment_method || 'Cash'}
-                      </span>
+                      <div>
+                         <span className="block text-sm font-bold text-gray-900">
+                           {formatTime(sale.created_at)}
+                         </span>
+                         <span className="text-xs text-gray-500 capitalize font-medium">
+                           {sale.payment_method || 'Cash'}
+                         </span>
+                      </div>
                     </div>
 
-                    {/* Right: Amount + Status */}
-                    <div className="flex items-center gap-3">
-                      <p className="text-lg font-bold text-emerald-600">
-                        {formatCurrency(sale.total_amount)}
-                      </p>
-                      {getStatusBadge(sale)}
-                    </div>
+                    <p className="text-xl font-black text-emerald-600">
+                      {formatCurrency(sale.total_amount)}
+                    </p>
                   </div>
                 </button>
               );

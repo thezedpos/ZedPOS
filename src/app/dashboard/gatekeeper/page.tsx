@@ -29,7 +29,13 @@ export default function GatekeeperPage() {
       localStorage.setItem('active_staff_role', member.role);
       localStorage.setItem('active_staff_name', member.name);
       localStorage.setItem('active_staff_id', member.id);
-      router.push('/dashboard');
+      
+      // FIX: Redirect cashiers straight to POS
+      if (member.role === 'cashier') {
+        router.push('/dashboard/pos');
+      } else {
+        router.push('/dashboard');
+      }
     },
     [router]
   );

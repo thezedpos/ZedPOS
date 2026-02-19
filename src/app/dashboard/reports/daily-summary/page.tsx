@@ -43,19 +43,14 @@ export default function DailySummaryPage() {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const supabase = createClient();
 
-  /**
-   * IMPORTANT: Fix UTC vs Local bug by calculating ranges in CAT (UTC+2),
-   * then converting to UTC ISO strings for Supabase filtering.
-   */
   const CAT_OFFSET_MINUTES = 120; // Africa/Lusaka is CAT (UTC+2)
 
   const getCatNowParts = () => {
     const now = new Date();
-    // Shift "now" by +02:00, then read parts using UTC getters (gives CAT calendar parts).
     const catNow = new Date(now.getTime() + CAT_OFFSET_MINUTES * 60_000);
     return {
       year: catNow.getUTCFullYear(),
-      month: catNow.getUTCMonth(), // 0-based
+      month: catNow.getUTCMonth(), 
       day: catNow.getUTCDate(),
     };
   };
@@ -69,7 +64,6 @@ export default function DailySummaryPage() {
     second: number,
     ms: number
   ) => {
-    // CAT is UTC+2, so UTC = CAT - 2 hours
     return new Date(Date.UTC(year, month0, day, hour - 2, minute, second, ms)).toISOString();
   };
 
@@ -83,7 +77,6 @@ export default function DailySummaryPage() {
       };
     }
 
-    // monthly
     const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
     return {
       start: toUtcISOStringFromCat(year, month, 1, 0, 0, 0, 0),
@@ -92,7 +85,6 @@ export default function DailySummaryPage() {
   };
 
   const formatPeriodLabel = (reportMode: ReportMode) => {
-    // Prefer explicit CAT timezone formatting if available in browser.
     try {
       const options: Intl.DateTimeFormatOptions =
         reportMode === 'daily'
@@ -100,7 +92,6 @@ export default function DailySummaryPage() {
           : { year: 'numeric', month: 'long', timeZone: 'Africa/Lusaka' };
       return new Intl.DateTimeFormat('en-US', options).format(new Date());
     } catch {
-      // Fallback: format based on CAT-shifted "now"
       const { year, month, day } = getCatNowParts();
       const d = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
       return reportMode === 'daily'
@@ -109,12 +100,10 @@ export default function DailySummaryPage() {
     }
   };
 
-  // Format currency
   const formatCurrency = (amount: number) => {
     return `K${amount.toFixed(2)}`;
   };
 
-  // Fetch report data (Daily or Monthly)
   useEffect(() => {
     if (businessId) {
       fetchReportData(mode);
@@ -128,15 +117,13 @@ export default function DailySummaryPage() {
       setLoading(true);
       const { start, end } = getRange(reportMode);
 
-      // Fetch sales in selected period (CAT day/month boundaries converted to UTC)
-      // Exclude voided sales from revenue calculations
       const { data: salesData, error: salesError } = await supabase
         .from('sales')
         .select('id, total_amount, tax_amount, payment_method, created_at')
         .eq('business_id', businessId)
         .gte('created_at', start)
         .lte('created_at', end)
-        .neq('status', 'voided') // Exclude voided sales
+        .neq('status', 'voided') 
         .order('created_at', { ascending: false });
 
       if (salesError) {
@@ -144,7 +131,6 @@ export default function DailySummaryPage() {
       } else if (salesData) {
         setSales(salesData);
 
-        // Fetch all sale items for these sales
         const saleIds = salesData.map((sale) => sale.id);
         if (saleIds.length > 0) {
           const { data: itemsData, error: itemsError } = await supabase
@@ -154,7 +140,7 @@ export default function DailySummaryPage() {
               sale_id,
               product_id,
               quantity,
-              unit_price,
+              price_at_sale, 
               products:product_id (
                 name,
                 tax_type
@@ -165,13 +151,13 @@ export default function DailySummaryPage() {
           if (itemsError) {
             console.error('Error fetching sale items:', itemsError);
           } else if (itemsData) {
-            // Transform the data
+            // FIX: Map 'price_at_sale' to 'unit_price' so math works!
             const transformedItems = itemsData.map((item: any) => ({
               id: item.id,
               sale_id: item.sale_id,
               product_id: item.product_id,
               quantity: item.quantity,
-              unit_price: item.unit_price,
+              unit_price: item.price_at_sale || 0, // <--- CRITICAL FIX
               product: {
                 name: item.products?.name || 'Unknown Product',
                 tax_type: item.products?.tax_type || null,
@@ -211,7 +197,6 @@ export default function DailySummaryPage() {
 
       if (taxType === 'standard') {
         standardTotal += itemTotal;
-        // Calculate VAT for standard items
         const itemVAT = itemTotal - (itemTotal / 1.16);
         vatCollected += itemVAT;
       } else if (taxType === 'zero_rated' || taxType === 'exempt') {
@@ -263,7 +248,6 @@ export default function DailySummaryPage() {
 
   const topProducts = getTopProducts();
 
-  // Print/Download handler
   const handlePrint = () => {
     window.print();
   };
@@ -272,7 +256,7 @@ export default function DailySummaryPage() {
     const reportTitle = mode === 'daily' ? 'DAILY Z-REPORT' : 'MONTHLY Z-REPORT';
     const periodLabel = formatPeriodLabel(mode);
     const topProductsLabel = mode === 'daily' ? 'TOP 5 PRODUCTS (TODAY)' : 'TOP 5 PRODUCTS (THIS MONTH)';
-    // Create a text summary
+    
     const summary = `
 ${reportTitle}
 ${businessName || 'Shop'}
@@ -294,7 +278,6 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.product_name} - Qty: ${p.total_quanti
 Generated: ${new Date().toLocaleString()}
     `;
 
-    // Create blob and download
     const blob = new Blob([summary], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -311,14 +294,13 @@ Generated: ${new Date().toLocaleString()}
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin h-8 w-8 text-emerald-600" />
-          <p className="text-gray-600">Loading daily summary...</p>
+          <p className="text-gray-600">Loading summary...</p>
         </div>
       </div>
     );
   }
 
   return (
-    // FIX 1: Nuclear Layout Fix (Strictly contained wrapper)
     <div className="w-full max-w-[100vw] overflow-x-hidden min-h-screen bg-gray-50">
       
       {/* Header */}
@@ -332,13 +314,14 @@ Generated: ${new Date().toLocaleString()}
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-md">
                 {mode === 'daily' ? 'Daily Z-Report' : 'Monthly Z-Report'}
               </h1>
               <p className="text-sm text-gray-600">{formatPeriodLabel(mode)}</p>
             </div>
           </div>
         </div>
+        
         {/* Mode Toggle */}
         <div className="px-4 pb-4 max-w-5xl mx-auto">
           <div className="inline-flex rounded-lg bg-gray-100 p-1">
@@ -367,31 +350,37 @@ Generated: ${new Date().toLocaleString()}
       <div className="p-4 space-y-6 print:p-0 w-full max-w-5xl mx-auto pb-24">
         {/* Big Numbers Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:grid-cols-3">
-          <div className="bg-white rounded-lg p-6 shadow-sm border-2 border-emerald-500 print:border print:border-gray-300">
-            <div className="flex items-center justify-between mb-3">
-              <DollarSign className="w-8 h-8 text-emerald-600" />
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300">
+            <div className="flex items-center mb-3">
+              <div className="bg-emerald-100 p-2 rounded-lg">
+                <DollarSign className="w-6 h-6 text-emerald-600" />
+              </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 truncate">
               {formatCurrency(totalRevenue)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Total Revenue</p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border-2 border-blue-500 print:border print:border-gray-300">
-            <div className="flex items-center justify-between mb-3">
-              <CreditCard className="w-8 h-8 text-blue-600" />
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300">
+            <div className="flex items-center mb-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <CreditCard className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 truncate">
               {formatCurrency(cashCollected)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Cash Collected</p>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border-2 border-purple-500 print:border print:border-gray-300">
-            <div className="flex items-center justify-between mb-3">
-              <Smartphone className="w-8 h-8 text-purple-600" />
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300">
+            <div className="flex items-center mb-3">
+              <div className="bg-purple-100 p-2 rounded-lg">
+                <Smartphone className="w-6 h-6 text-purple-600" />
+              </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 truncate">
               {formatCurrency(mobileMoney)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Mobile Money</p>
@@ -399,29 +388,30 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Tax Summary Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full">
+        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
             Tax Summary
           </h2>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-700 font-medium">Total Standard (16%) Sales</span>
+          <div className="space-y-0">
+            {/* FIX: flex-col on small screens, flex-row on big screens prevents horizontal scrolling */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Standard (16%) Sales</span>
               <span className="text-xl font-bold text-gray-900">{formatCurrency(standardTotal)}</span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-700 font-medium">Total VAT Collected</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total VAT Collected</span>
               <span className="text-xl font-bold text-emerald-600">{formatCurrency(vatCollected)}</span>
             </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-700 font-medium">Total Exempt/Zero-Rated Sales</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 gap-1">
+              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Exempt/Zero-Rated</span>
               <span className="text-xl font-bold text-gray-900">{formatCurrency(exemptZeroTotal)}</span>
             </div>
           </div>
         </div>
 
         {/* Product Performance */}
-        <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <Package className="w-5 h-5 text-emerald-600" />
             {mode === 'daily' ? 'Top 5 Products Sold Today' : 'Top 5 Products This Month'}
@@ -433,7 +423,6 @@ Generated: ${new Date().toLocaleString()}
           ) : (
             <div className="space-y-3 w-full">
               {topProducts.map((product, index) => (
-                // FIX 2: min-w-0 on flex items prevents blowout
                 <div
                   key={product.product_id}
                   className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 w-full min-w-0"
@@ -460,14 +449,14 @@ Generated: ${new Date().toLocaleString()}
         <div className="flex flex-col sm:flex-row gap-3 print:hidden">
           <button
             onClick={handlePrint}
-            className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-4 rounded-lg font-bold text-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
           >
             <Printer className="w-5 h-5" />
             Print Summary
           </button>
           <button
             onClick={handleDownload}
-            className="flex-1 bg-emerald-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
           >
             <Download className="w-5 h-5" />
             Download Summary
@@ -475,7 +464,6 @@ Generated: ${new Date().toLocaleString()}
         </div>
       </div>
 
-      {/* Print Styles */}
       <style jsx global>{`
         @media print {
           body {

@@ -117,7 +117,7 @@ export default function SubscriptionPage() {
         <PricingCard 
           tierName="Starter"
           price="Free"
-          description="For small kantemba & startups"
+          // description="For small kantemba & startups"
           isActive={visualTier === 'free'}
           buttonText={visualTier === 'free' ? "Current Plan" : "Downgrade"}
           isDisabled={visualTier === 'free'}
@@ -138,7 +138,7 @@ export default function SubscriptionPage() {
           tierName="Growth"
           price="K100"
           period="/month"
-          description="For growing retail shops"
+          //description="For growing retail shops"
           isActive={visualTier === 'growth'}
           color="blue"
           buttonText={visualTier === 'growth' ? "Current Plan" : "Upgrade to Growth"}
@@ -161,7 +161,7 @@ export default function SubscriptionPage() {
           tierName="Pro"
           price="K150"
           period="/month"
-          description="For busy shops & wholesalers"
+          // description="For busy shops & wholesalers"
           isActive={visualTier === 'pro'}
           color="emerald"
           isBestValue
