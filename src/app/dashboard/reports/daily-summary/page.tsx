@@ -151,13 +151,12 @@ export default function DailySummaryPage() {
           if (itemsError) {
             console.error('Error fetching sale items:', itemsError);
           } else if (itemsData) {
-            // FIX: Map 'price_at_sale' to 'unit_price' so math works!
             const transformedItems = itemsData.map((item: any) => ({
               id: item.id,
               sale_id: item.sale_id,
               product_id: item.product_id,
               quantity: item.quantity,
-              unit_price: item.price_at_sale || 0, // <--- CRITICAL FIX
+              unit_price: item.price_at_sale || 0,
               product: {
                 name: item.products?.name || 'Unknown Product',
                 tax_type: item.products?.tax_type || null,
@@ -301,7 +300,8 @@ Generated: ${new Date().toLocaleString()}
   }
 
   return (
-    <div className="w-full max-w-[100vw] overflow-x-hidden min-h-screen bg-gray-50">
+    // FIX 1: Bulletproof outer wrapper for horizontal scroll prevention
+    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden w-full relative">
       
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10 w-full">
@@ -356,7 +356,8 @@ Generated: ${new Date().toLocaleString()}
                 <DollarSign className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1 truncate">
+            {/* FIX 2: Replaced truncate with break-words so the whole number displays */}
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-words">
               {formatCurrency(totalRevenue)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Total Revenue</p>
@@ -368,7 +369,7 @@ Generated: ${new Date().toLocaleString()}
                 <CreditCard className="w-6 h-6 text-blue-600" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1 truncate">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-words">
               {formatCurrency(cashCollected)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Cash Collected</p>
@@ -380,7 +381,7 @@ Generated: ${new Date().toLocaleString()}
                 <Smartphone className="w-6 h-6 text-purple-600" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1 truncate">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-words">
               {formatCurrency(mobileMoney)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Mobile Money</p>
@@ -388,13 +389,13 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Tax Summary Section */}
-        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden">
+        {/* FIX 3: Added break-words to ensure these containers never stretch the page horizontally */}
+        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden break-words">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
             Tax Summary
           </h2>
           <div className="space-y-0">
-            {/* FIX: flex-col on small screens, flex-row on big screens prevents horizontal scrolling */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1">
               <span className="text-gray-700 font-medium text-sm sm:text-base">Total Standard (16%) Sales</span>
               <span className="text-xl font-bold text-gray-900">{formatCurrency(standardTotal)}</span>
@@ -411,7 +412,7 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Product Performance */}
-        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden break-words">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <Package className="w-5 h-5 text-emerald-600" />
             {mode === 'daily' ? 'Top 5 Products Sold Today' : 'Top 5 Products This Month'}

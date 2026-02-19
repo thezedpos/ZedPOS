@@ -137,7 +137,7 @@ export default function Dashboard() {
   if (!businessId) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20">
       <div className="p-4 space-y-4 max-w-4xl mx-auto">
         
         {/* Header */}
@@ -187,31 +187,44 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats Grid - RESTORED TO ORIGINAL LAYOUT */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 overflow-hidden">
-            <TrendingUp className="w-5 h-5 text-emerald-600 mb-2" />
-            {/* Added truncate so long numbers don't push out of the box */}
-            <p className="text-2xl font-bold text-gray-900 truncate" title={loadingSales ? '-' : formatCurrency(todaySales)}>
+        {/* --- UPDATED STATS LAYOUT --- */}
+        <div className="flex flex-col gap-3">
+          
+          {/* Top Row: Total Sales (Full Width) */}
+          <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 flex flex-col justify-center">
+            <div className="flex items-center text-emerald-600 mb-1">
+              <TrendingUp className="w-5 h-5 mr-2" />
+              <p className="text-sm font-semibold uppercase tracking-wider text-gray-500">Today's Sales</p>
+            </div>
+            {/* break-words guarantees the text will wrap if it gets absurdly huge, but won't cut it off */}
+            <p className="text-4xl font-bold text-gray-900 break-words">
               {loadingSales ? '-' : formatCurrency(todaySales)}
             </p>
-            <p className="text-xs text-gray-500 mt-1">Today's Sales</p>
           </div>
 
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 overflow-hidden">
-            <Receipt className="w-5 h-5 text-blue-600 mb-2" />
-            <p className="text-2xl font-bold text-gray-900 truncate">{loadingSales ? '-' : transactionCount}</p>
-            <p className="text-xs text-gray-500 mt-1">Transactions</p>
-          </div>
+          {/* Bottom Row: Transactions & Low Stock (Side-by-Side) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+              <Receipt className="w-5 h-5 text-blue-600 mb-2" />
+              <p className="text-2xl font-bold text-gray-900 truncate">{loadingSales ? '-' : transactionCount}</p>
+              <p className="text-xs text-gray-500 mt-1">Transactions</p>
+            </div>
 
-          {/* Made this a clickable link to inventory, counting items <= 4 */}
-          <Link href="/dashboard/inventory" className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors block overflow-hidden">
-            <AlertTriangle className={`w-5 h-5 mb-2 ${lowStockCount > 0 ? 'text-red-500' : 'text-amber-600'}`} />
-            <p className={`text-2xl font-bold truncate ${lowStockCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-              {loadingSales ? '-' : lowStockCount}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Low Stock</p>
-          </Link>
+            <Link 
+              href="/dashboard/inventory" 
+              className={`rounded-lg p-4 shadow-sm border transition-colors block ${
+                lowStockCount > 0 
+                  ? 'bg-red-50 border-red-100 hover:bg-red-100' 
+                  : 'bg-white border-gray-100 hover:bg-gray-50'
+              }`}
+            >
+              <AlertTriangle className={`w-5 h-5 mb-2 ${lowStockCount > 0 ? 'text-red-500' : 'text-amber-600'}`} />
+              <p className={`text-2xl font-bold truncate ${lowStockCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {loadingSales ? '-' : lowStockCount}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Low Stock Alerts</p>
+            </Link>
+          </div>
         </div>
 
         {/* Quick Actions */}

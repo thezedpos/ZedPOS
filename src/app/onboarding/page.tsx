@@ -33,7 +33,7 @@ export default function OnboardingPage() {
   // Auth guard
   useEffect(() => {
     if (!checkingShop && user === null) {
-      router.replace('/login');
+      router.replace('/');
       return;
     }
   }, [checkingShop, user, router]);
