@@ -43,7 +43,7 @@ export default function DailySummaryPage() {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const supabase = createClient();
 
-  const CAT_OFFSET_MINUTES = 120; // Africa/Lusaka is CAT (UTC+2)
+  const CAT_OFFSET_MINUTES = 120;
 
   const getCatNowParts = () => {
     const now = new Date();
@@ -175,7 +175,6 @@ export default function DailySummaryPage() {
     }
   };
 
-  // Calculate totals
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
   const cashCollected = sales
     .filter((sale) => sale.payment_method?.toLowerCase() === 'cash')
@@ -184,7 +183,6 @@ export default function DailySummaryPage() {
     .filter((sale) => sale.payment_method?.toLowerCase() === 'mobile' || sale.payment_method?.toLowerCase() === 'mobile_money')
     .reduce((sum, sale) => sum + sale.total_amount, 0);
 
-  // Calculate tax summary
   const calculateTaxSummary = () => {
     let standardTotal = 0;
     let vatCollected = 0;
@@ -208,7 +206,6 @@ export default function DailySummaryPage() {
 
   const { standardTotal, vatCollected, exemptZeroTotal } = calculateTaxSummary();
 
-  // Calculate top 5 products by quantity
   const getTopProducts = (): ProductPerformance[] => {
     const productMap = new Map<string, { name: string; quantity: number; revenue: number }>();
 
@@ -300,35 +297,35 @@ Generated: ${new Date().toLocaleString()}
   }
 
   return (
-    // FIX 1: Bulletproof outer wrapper for horizontal scroll prevention
-    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden w-full relative">
+    // FIX 1: overflow-x-clip completely locks horizontal scrolling bounds.
+    <div className="min-h-screen bg-gray-50 w-full max-w-full overflow-x-clip flex flex-col relative">
       
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10 w-full">
-        <div className="flex items-center justify-between p-4 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between p-4 max-w-5xl mx-auto min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => router.back()}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation flex-shrink-0"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-md">
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate pr-2">
                 {mode === 'daily' ? 'Daily Z-Report' : 'Monthly Z-Report'}
               </h1>
-              <p className="text-sm text-gray-600">{formatPeriodLabel(mode)}</p>
+              <p className="text-sm text-gray-600 truncate">{formatPeriodLabel(mode)}</p>
             </div>
           </div>
         </div>
         
         {/* Mode Toggle */}
         <div className="px-4 pb-4 max-w-5xl mx-auto">
-          <div className="inline-flex rounded-lg bg-gray-100 p-1">
+          <div className="inline-flex rounded-lg bg-gray-100 p-1 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setMode('daily')}
-              className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
+              className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-md transition-colors touch-manipulation ${
                 mode === 'daily' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -337,7 +334,7 @@ Generated: ${new Date().toLocaleString()}
             <button
               type="button"
               onClick={() => setMode('monthly')}
-              className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
+              className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-md transition-colors touch-manipulation ${
                 mode === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -347,41 +344,41 @@ Generated: ${new Date().toLocaleString()}
         </div>
       </div>
 
-      <div className="p-4 space-y-6 print:p-0 w-full max-w-5xl mx-auto pb-24">
+      <div className="p-4 space-y-6 print:p-0 w-full max-w-5xl mx-auto pb-24 overflow-x-hidden">
         {/* Big Numbers Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:grid-cols-3">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:grid-cols-3 w-full">
+          {/* FIX 2: min-w-0 and break-all forces huge numbers to wrap downwards instead of stretching the screen */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300 min-w-0">
             <div className="flex items-center mb-3">
               <div className="bg-emerald-100 p-2 rounded-lg">
                 <DollarSign className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
-            {/* FIX 2: Replaced truncate with break-words so the whole number displays */}
-            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-words">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-all">
               {formatCurrency(totalRevenue)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Total Revenue</p>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300 min-w-0">
             <div className="flex items-center mb-3">
               <div className="bg-blue-100 p-2 rounded-lg">
                 <CreditCard className="w-6 h-6 text-blue-600" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-words">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-all">
               {formatCurrency(cashCollected)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Cash Collected</p>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 print:border print:border-gray-300 min-w-0">
             <div className="flex items-center mb-3">
               <div className="bg-purple-100 p-2 rounded-lg">
                 <Smartphone className="w-6 h-6 text-purple-600" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-words">
+            <p className="text-3xl font-extrabold text-gray-900 mb-1 break-all">
               {formatCurrency(mobileMoney)}
             </p>
             <p className="text-sm font-semibold text-gray-600">Mobile Money</p>
@@ -389,30 +386,30 @@ Generated: ${new Date().toLocaleString()}
         </div>
 
         {/* Tax Summary Section */}
-        {/* FIX 3: Added break-words to ensure these containers never stretch the page horizontally */}
-        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden break-words">
+        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full min-w-0">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
             Tax Summary
           </h2>
           <div className="space-y-0">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1">
-              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Standard (16%) Sales</span>
-              <span className="text-xl font-bold text-gray-900">{formatCurrency(standardTotal)}</span>
+            {/* FIX 3: Labels wrap nicely, amounts break-all if needed */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1 min-w-0">
+              <span className="text-gray-700 font-medium text-sm sm:text-base break-words">Total Standard (16%) Sales</span>
+              <span className="text-xl font-bold text-gray-900 break-all sm:text-right">{formatCurrency(standardTotal)}</span>
             </div>
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1">
-              <span className="text-gray-700 font-medium text-sm sm:text-base">Total VAT Collected</span>
-              <span className="text-xl font-bold text-emerald-600">{formatCurrency(vatCollected)}</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-gray-100 gap-1 min-w-0">
+              <span className="text-gray-700 font-medium text-sm sm:text-base break-words">Total VAT Collected</span>
+              <span className="text-xl font-bold text-emerald-600 break-all sm:text-right">{formatCurrency(vatCollected)}</span>
             </div>
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 gap-1">
-              <span className="text-gray-700 font-medium text-sm sm:text-base">Total Exempt/Zero-Rated</span>
-              <span className="text-xl font-bold text-gray-900">{formatCurrency(exemptZeroTotal)}</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 gap-1 min-w-0">
+              <span className="text-gray-700 font-medium text-sm sm:text-base break-words">Total Exempt/Zero-Rated</span>
+              <span className="text-xl font-bold text-gray-900 break-all sm:text-right">{formatCurrency(exemptZeroTotal)}</span>
             </div>
           </div>
         </div>
 
         {/* Product Performance */}
-        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full overflow-hidden break-words">
+        <div className="bg-white rounded-xl shadow-sm p-6 print:shadow-none print:border print:border-gray-300 w-full min-w-0">
           <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <Package className="w-5 h-5 text-emerald-600" />
             {mode === 'daily' ? 'Top 5 Products Sold Today' : 'Top 5 Products This Month'}
@@ -422,24 +419,27 @@ Generated: ${new Date().toLocaleString()}
               {mode === 'daily' ? 'No products sold today' : 'No products sold this month'}
             </p>
           ) : (
-            <div className="space-y-3 w-full">
+            <div className="space-y-3 w-full min-w-0">
               {topProducts.map((product, index) => (
                 <div
                   key={product.product_id}
-                  className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 w-full min-w-0"
+                  className="flex items-start sm:items-center justify-between py-3 border-b border-gray-100 last:border-0 w-full min-w-0 gap-3"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm flex-shrink-0 mt-0.5 sm:mt-0">
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate pr-2">{product.product_name}</p>
+                      <p className="font-semibold text-gray-900 truncate pr-2" title={product.product_name}>{product.product_name}</p>
                       <p className="text-sm text-gray-500">Qty: {product.total_quantity}</p>
                     </div>
                   </div>
-                  <p className="text-lg font-bold text-emerald-600 ml-2 whitespace-nowrap">
-                    {formatCurrency(product.total_revenue)}
-                  </p>
+                  {/* Prevent numbers from pushing by allowing them to wrap */}
+                  <div className="flex-shrink-0 max-w-[40%] text-right">
+                    <p className="text-lg font-bold text-emerald-600 break-all">
+                      {formatCurrency(product.total_revenue)}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -450,17 +450,17 @@ Generated: ${new Date().toLocaleString()}
         <div className="flex flex-col sm:flex-row gap-3 print:hidden">
           <button
             onClick={handlePrint}
-            className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 touch-manipulation"
           >
             <Printer className="w-5 h-5" />
             Print Summary
           </button>
           <button
             onClick={handleDownload}
-            className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 touch-manipulation"
           >
             <Download className="w-5 h-5" />
-            Download Summary
+            Download
           </button>
         </div>
       </div>
