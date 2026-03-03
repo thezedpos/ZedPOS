@@ -1,0 +1,8 @@
+[{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.zedpos.app",
+      "sha256_cert_fingerprints": ["73:52:ED:B4:D2:F1:DB:BC:2E:3D:E9:0C:A1:64:F2:4C:D1:A2:91:DE:D7:4D:0C:24:D2:75:44:BD:5D:66:65:53"]
+    }
+  }]
