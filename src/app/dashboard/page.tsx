@@ -91,12 +91,13 @@ export default function Dashboard() {
 
           if (recentData) setRecentSales(recentData);
 
-          // 3. Fetch Low Stock Items (Quantity <= 4)
+          // 3. Fetch Low Stock Items (Quantity <= 5)
+          // THE FIX: Changed 'stock_quantity' to 'stock' to match your database
           const { count } = await supabase
             .from('products')
             .select('*', { count: 'exact', head: true })
             .eq('business_id', businessId)
-            .lte('stock_quantity', 4);
+            .lte('stock', 5); 
             
           setLowStockCount(count || 0);
 

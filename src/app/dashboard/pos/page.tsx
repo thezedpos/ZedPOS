@@ -128,9 +128,18 @@ export default function POSPage() {
   };
 
   const handleAddToCart = (product: Product) => {
+    // FIX 1: Check existing quantity in cart before adding
+    const existingItem = cart.find(item => item.id === product.id);
+    const currentQty = existingItem ? existingItem.quantity : 0;
+
+    if (currentQty + 1 > product.stock) {
+      setToast({ message: `Cannot add more! Only ${product.stock} left in stock.`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return; // Stop the function here!
+    }
+
     setCart(prevCart => {
-      const existing = prevCart.find(item => item.id === product.id);
-      if (existing) {
+      if (existingItem) {
         return prevCart.map(item => 
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
@@ -145,15 +154,25 @@ export default function POSPage() {
     const product = products.find(p => p.barcode && p.barcode.trim().toLowerCase() === code.trim().toLowerCase());
     if (product) {
       handleAddToCart(product);
-      setToast({ message: `Added ${product.name}`, type: 'success' });
+      // Removed the success toast here because we want the error toast to show if out of stock
       setIsScannerOpen(false);
     } else {
       setToast({ message: 'Product not found', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
-    setTimeout(() => setToast(null), 3000);
   };
 
   const handleUpdateQuantity = (id: string, delta: number) => {
+    // FIX 2: Check stock limits when clicking the "+" button in the cart
+    const existingItem = cart.find(item => item.id === id);
+    if (!existingItem) return;
+
+    if (delta > 0 && existingItem.quantity + delta > existingItem.stock) {
+      setToast({ message: `Cannot add more! Only ${existingItem.stock} left in stock.`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return; // Stop the function here!
+    }
+
     setCart(prevCart => {
       return prevCart.map(item => {
         if (item.id === id) {
