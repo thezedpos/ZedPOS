@@ -2,11 +2,11 @@
   "name": "ZedPOS",
   "short_name": "ZedPOS",
   "start_url": "/",
-  "scope": "/",             // <--- ADD THIS LINE
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
-  "orientation": "portrait", // <--- GOOD FOR POS
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon.png",
