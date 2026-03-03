@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { BusinessProvider } from "@/contexts/BusinessContext";
-import ServiceWorkerRegister from "@/components/ServiceWorkerRegister"; // <--- ADDED THIS
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,8 +20,8 @@ export const metadata: Metadata = {
   description: "Simple, tax-compliant Point of Sale for Zambian businesses.",
   manifest: "/manifest.json", 
   icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
+    icon: "/icon-192.png",  // Updated to match the resized icon
+    apple: "/icon-512.png", // Updated to match the big icon
   },
 };
 
@@ -34,9 +33,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {/* --- ADDED SERVICE WORKER COMPONENT --- */}
-        <ServiceWorkerRegister /> 
         
+        {/* THIS IS THE FIX: A raw script that runs before React even loads so PWABuilder's bot sees it instantly */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                  .then(function(reg) { console.log('SW registered!', reg.scope); })
+                  .catch(function(err) { console.log('SW failed!', err); });
+              }
+            `,
+          }}
+        />
+
         <BusinessProvider>
           {children}
         </BusinessProvider>
