@@ -4,19 +4,19 @@ import { useEffect } from 'react';
 
 export default function ServiceWorkerRegister() {
   useEffect(() => {
+    // Check if the browser supports service workers
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js').then(
-          function (registration) {
-            console.log('Service Worker registered with scope: ', registration.scope);
-          },
-          function (err) {
-            console.log('Service Worker registration failed: ', err);
-          }
-        );
-      });
+      // Force registration immediately without waiting for window load
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((registration) => {
+          console.log('Service Worker forcefully registered! Scope:', registration.scope);
+        })
+        .catch((error) => {
+          console.error('Service Worker registration failed:', error);
+        });
     }
   }, []);
 
-  return null; // This component is invisible
+  return null; // Invisible background component
 }
