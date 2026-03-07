@@ -88,11 +88,10 @@ export default function OnboardingPage() {
       }
 
       const now = new Date();
-      // Add exactly 30 days in milliseconds to avoid browser calendar quirks
       const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
       const isoDate = thirtyDaysFromNow.toISOString();
 
-      // 1. Insert new business (WITH TRIAL DATA)
+      // 1. Insert new business
       const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .insert({
@@ -113,46 +112,47 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 2. Insert business_members row (WITH EMAIL AND PIN UPDATE LOGIC)
-      
-      const userFirstName = user.user_metadata?.full_name?.split(' ')[0] 
-                          || user.user_metadata?.name?.split(' ')[0] 
-                          || 'Owner';
+      // 2. Format User Details 
       const userEmail = user.email || user.user_metadata?.email || '';
+      let userFirstName = user.user_metadata?.full_name?.split(' ')[0] 
+                       || user.user_metadata?.name?.split(' ')[0];
 
-      const { error: memberError } = await supabase
+      // Smart Fallback: Extract name from email (e.g., john.doe@email.com -> John)
+      if (!userFirstName && userEmail) {
+        const emailName = userEmail.split('@')[0].split('.')[0].replace(/[0-9]/g, '');
+        userFirstName = emailName.charAt(0).toUpperCase() + emailName.slice(1);
+      }
+      
+      if (!userFirstName) userFirstName = 'Owner';
+
+      // 3. Force Update the DB Trigger Row
+      // The database instantly created a blank row. We just UPDATE it with our data.
+      const { data: updatedMember, error: updateError } = await supabase
         .from('business_members')
-        .insert({
-          user_id: user.id,
-          business_id: businessData.id,
-          role: 'owner',
+        .update({
           email: userEmail,
           pin_code: '0000',
           name: userFirstName
-        });
+        })
+        .eq('business_id', businessData.id)
+        .eq('user_id', user.id)
+        .select();
 
-      // THE FIX: If the trigger already made the row, UPDATE it instead of failing!
-      if (memberError && memberError.code === '23505') {
-        const { error: updateError } = await supabase
+      // Absolute fail-safe: If the row somehow didn't exist, forcefully insert it.
+      if (!updatedMember || updatedMember.length === 0) {
+        await supabase
           .from('business_members')
-          .update({
+          .insert({
+            user_id: user.id,
+            business_id: businessData.id,
+            role: 'owner',
             email: userEmail,
             pin_code: '0000',
             name: userFirstName
-          })
-          .eq('business_id', businessData.id)
-          .eq('user_id', user.id);
-          
-        if (updateError) {
-          console.error("Failed to update trigger-created member:", updateError);
-        }
-      } else if (memberError) {
-        setError(memberError.message || 'Failed to link user to business');
-        setLoading(false);
-        return;
+          });
       }
 
-      // 3. Safety Check: Ensure Subscription Record Exists
+      // 4. Ensure Subscription Record Exists
       const { data: sub } = await supabase
         .from('subscriptions')
         .select('id')
@@ -169,7 +169,7 @@ export default function OnboardingPage() {
         });
       }
 
-      // 4. Refresh & FORCE HARD REDIRECT
+      // 5. Refresh & Redirect
       await refreshBusiness();
       window.location.href = '/dashboard';
 
