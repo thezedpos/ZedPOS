@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/supabase/client';
 import { useBusiness } from '@/contexts/BusinessContext';
-import { Loader2, LogOut, Store } from 'lucide-react'; // Added Icons
+import { Loader2, LogOut, Store } from 'lucide-react'; 
 
 interface StaffMember {
   id: string;
@@ -232,7 +232,7 @@ export default function GatekeeperPage() {
                 <p className="text-sm text-gray-500 mt-1">Enter your 4-digit PIN</p>
               </div>
 
-              <div className="flex justify-center my-6">
+              <div className="flex justify-center mt-6 mb-4">
                 <input
                   type="password"
                   inputMode="numeric"
@@ -248,6 +248,12 @@ export default function GatekeeperPage() {
                   placeholder="••••"
                   autoFocus
                 />
+              </div>
+
+              {/* NEW HELPER TEXT: Default PIN Hint */}
+              <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm text-center mb-6 flex items-center justify-center gap-2 border border-blue-100">
+                <span className="text-lg">💡</span>
+                <span>Tip: Your default PIN is <strong>0000</strong></span>
               </div>
 
               {error && (

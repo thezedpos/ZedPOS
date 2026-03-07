@@ -87,7 +87,6 @@ export default function OnboardingPage() {
         return;
       }
 
-      // --- FIX 1: ROBUST DATE CALCULATION ---
       const now = new Date();
       // Add exactly 30 days in milliseconds to avoid browser calendar quirks
       const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
@@ -100,7 +99,7 @@ export default function OnboardingPage() {
           name: shopName.trim(),
           subscription_tier: 'pro',       
           subscription_status: 'trial',   
-          trial_ends_at: isoDate,        // <--- Uses robust date
+          trial_ends_at: isoDate,        
           subscription_end_date: isoDate, 
           current_period_end: isoDate,
           created_at: now.toISOString()
@@ -114,20 +113,40 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 2. Insert business_members row
-      // --- FIX 2: ADD PIN CODE ---
+      // 2. Insert business_members row (WITH EMAIL AND PIN UPDATE LOGIC)
+      
+      const userFirstName = user.user_metadata?.full_name?.split(' ')[0] 
+                          || user.user_metadata?.name?.split(' ')[0] 
+                          || 'Owner';
+      const userEmail = user.email || user.user_metadata?.email || '';
+
       const { error: memberError } = await supabase
         .from('business_members')
         .insert({
           user_id: user.id,
           business_id: businessData.id,
           role: 'owner',
-          email: user.email,
-          pin_code: '0000' // <--- CRITICAL FIX: Missing in your old code
+          email: userEmail,
+          pin_code: '0000',
+          name: userFirstName
         });
 
-      // Ignore "Duplicate Key" error (Code 23505) if trigger ran first
-      if (memberError && memberError.code !== '23505') {
+      // THE FIX: If the trigger already made the row, UPDATE it instead of failing!
+      if (memberError && memberError.code === '23505') {
+        const { error: updateError } = await supabase
+          .from('business_members')
+          .update({
+            email: userEmail,
+            pin_code: '0000',
+            name: userFirstName
+          })
+          .eq('business_id', businessData.id)
+          .eq('user_id', user.id);
+          
+        if (updateError) {
+          console.error("Failed to update trigger-created member:", updateError);
+        }
+      } else if (memberError) {
         setError(memberError.message || 'Failed to link user to business');
         setLoading(false);
         return;
@@ -152,9 +171,6 @@ export default function OnboardingPage() {
 
       // 4. Refresh & FORCE HARD REDIRECT
       await refreshBusiness();
-      
-      // THE FIX: Do not use router.push here. 
-      // This forces the Service Worker to fetch a fresh page load with the new DB state!
       window.location.href = '/dashboard';
 
     } catch (err) {
