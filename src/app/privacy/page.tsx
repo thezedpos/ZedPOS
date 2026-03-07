@@ -25,7 +25,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">1. Introduction</h2>
             <p>
-              Welcome to ZedPOS. [We] ("we," "our," or "us") respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and share information when you use the ZedPOS mobile application and website (the "Service").
+              Welcome to ZedPOS. We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and share information when you use the ZedPOS mobile application and website (the "Service").
             </p>``
           </section>
 
@@ -75,8 +75,8 @@ export default function PrivacyPolicy() {
             <h2 className="text-xl font-bold text-gray-900 mb-3">7. Contact Us</h2>
             <p>
               If you have any questions about this Privacy Policy or wish to exercise your data rights, please contact us at: <br/><br/>
-              <strong>Email:</strong> [thezedpos@gmail.com] <br/>
-              <strong>Developer:</strong> [CHIMESI]
+              <strong>Email:</strong> thezedpos@gmail.com <br/>
+              <strong>Developer:</strong> CHIMESI
             </p>
           </section>
 
