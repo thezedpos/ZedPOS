@@ -150,9 +150,12 @@ export default function OnboardingPage() {
         });
       }
 
-      // 4. Refresh & Redirect
+      // 4. Refresh & FORCE HARD REDIRECT
       await refreshBusiness();
-      router.push('/dashboard');
+      
+      // THE FIX: Do not use router.push here. 
+      // This forces the Service Worker to fetch a fresh page load with the new DB state!
+      window.location.href = '/dashboard';
 
     } catch (err) {
       console.error('Onboarding error:', err);
